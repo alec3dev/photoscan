@@ -1,98 +1,374 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <script src="face-api.min.js"></script>
-  <meta charset="utf-8">
-  <title>Face Capture & Crop</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Face Detection & Cropping Tool</title>
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
   <style>
-    body { font-family: sans-serif; text-align: center; margin: 10px; }
-    video, canvas { max-width: 90%; border: 1px solid #ccc; margin: 5px; }
-    #controls { margin-top: 10px; }
-    input { width: 120px; }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+    
+    header {
+      background: linear-gradient(90deg, #4b6cb7 0%, #182848 100%);
+      color: white;
+      padding: 20px;
+      text-align: center;
+    }
+    
+    h1 {
+      font-size: 2.2rem;
+      margin-bottom: 10px;
+    }
+    
+    .subtitle {
+      font-size: 1rem;
+      opacity: 0.9;
+    }
+    
+    .main-content {
+      display: flex;
+      flex-wrap: wrap;
+      padding: 20px;
+      gap: 20px;
+    }
+    
+    .video-section, .preview-section {
+      flex: 1;
+      min-width: 300px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 15px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    }
+    
+    .section-title {
+      font-size: 1.2rem;
+      margin-bottom: 15px;
+      color: #2c3e50;
+      text-align: center;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #eaeaea;
+    }
+    
+    video, canvas {
+      width: 100%;
+      border-radius: 8px;
+      background: #ddd;
+      margin-bottom: 10px;
+      border: 1px solid #ddd;
+    }
+    
+    .status {
+      padding: 12px;
+      border-radius: 8px;
+      margin: 15px 0;
+      text-align: center;
+      font-weight: 500;
+    }
+    
+    .status.loading {
+      background: #fff4e5;
+      color: #cc8b00;
+    }
+    
+    .status.success {
+      background: #edfbf3;
+      color: #28a745;
+    }
+    
+    .status.error {
+      background: #feefef;
+      color: #dc3545;
+    }
+    
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin: 20px 0;
+    }
+    
+    button {
+      padding: 12px 15px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    
+    button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    #take {
+      background: #17a2b8;
+      color: white;
+    }
+    
+    #detect {
+      background: #ffc107;
+      color: #212529;
+    }
+    
+    #download {
+      background: #28a745;
+      color: white;
+    }
+    
+    .filename-container {
+      display: flex;
+      margin: 15px 0;
+    }
+    
+    #filename {
+      flex: 1;
+      padding: 12px 15px;
+      border: 1px solid #ddd;
+      border-radius: 6px 0 0 6px;
+      font-size: 16px;
+    }
+    
+    #set-filename {
+      border-radius: 0 6px 6px 0;
+      background: #6c757d;
+      color: white;
+    }
+    
+    .instructions {
+      background: #f8f9fa;
+      border-left: 4px solid #4b6cb7;
+      padding: 15px;
+      margin: 20px 0;
+      border-radius: 4px;
+    }
+    
+    .instructions h3 {
+      margin-bottom: 10px;
+      color: #2c3e50;
+    }
+    
+    .instructions ol {
+      margin-left: 20px;
+    }
+    
+    .instructions li {
+      margin-bottom: 8px;
+    }
+    
+    footer {
+      text-align: center;
+      padding: 20px;
+      color: #6c757d;
+      font-size: 0.9rem;
+      border-top: 1px solid #eaeaea;
+    }
+    
+    @media (max-width: 768px) {
+      .main-content {
+        flex-direction: column;
+      }
+    }
   </style>
 </head>
 <body>
-  <h2>Face Capture & Crop</h2>
-
-  <video id="video" width="320" height="240" autoplay playsinline></video>
-  <canvas id="snapshot" width="320" height="240" style="display:none;"></canvas>
-  <canvas id="output" width="320" height="240"></canvas>
-  <p id="status">Loading...</p>
-
-  <div id="controls">
-    <button id="take">📸 Take Photo</button>
-    <button id="detect">🔍 Detect Face</button>
-    <input id="filename" placeholder="File name" />
-    <button id="download">⬇️ Download</button>
+  <div class="container">
+    <header>
+      <h1>Face Detection & Cropping Tool</h1>
+      <p class="subtitle">Capture, detect, and download cropped face images</p>
+    </header>
+    
+    <div class="main-content">
+      <div class="video-section">
+        <h2 class="section-title">Live Camera</h2>
+        <video id="video" width="320" height="240" autoplay playsinline></video>
+        <div id="status" class="status loading">Loading models...</div>
+        
+        <div class="controls">
+          <button id="take" disabled>
+            <span>📸</span> Take Photo
+          </button>
+          <button id="detect" disabled>
+            <span>🔍</span> Detect Face
+          </button>
+        </div>
+        
+        <div class="instructions">
+          <h3>How to use:</h3>
+          <ol>
+            <li>Allow camera access when prompted</li>
+            <li>Click "Take Photo" to capture an image</li>
+            <li>Click "Detect Face" to identify and crop the face</li>
+            <li>Rename the file if desired</li>
+            <li>Click "Download" to save the cropped image</li>
+          </ol>
+        </div>
+      </div>
+      
+      <div class="preview-section">
+        <h2 class="section-title">Preview & Download</h2>
+        <canvas id="snapshot" width="320" height="240" style="display:none;"></canvas>
+        <canvas id="output" width="320" height="240"></canvas>
+        
+        <div class="filename-container">
+          <input type="text" id="filename" placeholder="File name (without extension)">
+          <button id="set-filename">Set Name</button>
+        </div>
+        
+        <div class="controls">
+          <button id="download" disabled>
+            <span>⬇️</span> Download Image
+          </button>
+        </div>
+        
+        <div id="download-status" class="status">
+          File will be saved as: <span id="current-filename">face.png</span>
+        </div>
+      </div>
+    </div>
+    
+    <footer>
+      <p>Powered by face-api.js | &copy; 2023 Face Detection Tool</p>
+    </footer>
   </div>
 
   <script>
-    // Dynamically load face-api.js
-    function loadFaceApi() {
-      return new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/face-api.js';
-        script.onload = resolve;
-        script.onerror = reject;
-        document.body.appendChild(script);
-      });
-    }
-
-    window.addEventListener('load', async () => {
-      const statusP = document.getElementById('status');
+    document.addEventListener('DOMContentLoaded', async () => {
+      // DOM elements
+      const statusEl = document.getElementById('status');
       const video = document.getElementById('video');
       const snapshotCanvas = document.getElementById('snapshot');
       const outputCanvas = document.getElementById('output');
+      const takeBtn = document.getElementById('take');
+      const detectBtn = document.getElementById('detect');
+      const downloadBtn = document.getElementById('download');
+      const filenameInput = document.getElementById('filename');
+      const setFilenameBtn = document.getElementById('set-filename');
+      const currentFilenameEl = document.getElementById('current-filename');
+      const downloadStatusEl = document.getElementById('download-status');
+      
       const ctxSnap = snapshotCanvas.getContext('2d');
       const ctxOut = outputCanvas.getContext('2d');
-
+      
+      // Initialize filename
+      let filename = 'face';
+      
+      // Set status function
+      function setStatus(message, type = 'loading') {
+        statusEl.textContent = message;
+        statusEl.className = `status ${type}`;
+      }
+      
+      // Update filename display
+      function updateFilenameDisplay() {
+        currentFilenameEl.textContent = `${filename}.png`;
+      }
+      
+      // Initialize
       try {
-        statusP.textContent = '⏳ Loading face-api.js...';
-        await loadFaceApi();
-        statusP.textContent = '✅ face-api.js loaded.';
-
-        // start camera
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        video.srcObject = stream;
-        statusP.textContent = '✅ Camera started.';
-
-        // load models from CDN
+        setStatus('Loading face detection models...', 'loading');
+        
+        // Load face-api.js models
         const MODEL_PATH = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
-        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_PATH);
-        await faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_PATH);
-        statusP.textContent = '✅ Models loaded. Ready!';
-
-        // Take photo
-        document.getElementById('take').onclick = () => {
-          ctxSnap.drawImage(video, 0, 0, snapshotCanvas.width, snapshotCanvas.height);
-          ctxOut.drawImage(snapshotCanvas, 0, 0);
-          statusP.textContent = '📸 Photo taken.';
-        };
-
-        // Detect face
-        document.getElementById('detect').onclick = async () => {
-          statusP.textContent = '🔍 Detecting face...';
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_PATH),
+          faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_PATH)
+        ]);
+        
+        setStatus('Models loaded. Starting camera...', 'success');
+        
+        // Start camera
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            width: { ideal: 640 }, 
+            height: { ideal: 480 } 
+          } 
+        });
+        video.srcObject = stream;
+        
+        // Enable buttons after camera starts
+        takeBtn.disabled = false;
+        
+        setStatus('Camera started. Ready to take photos!', 'success');
+        
+      } catch (err) {
+        console.error('Error initializing:', err);
+        setStatus(`Error: ${err.message || 'Failed to initialize'}`, 'error');
+        return;
+      }
+      
+      // Take photo
+      takeBtn.addEventListener('click', () => {
+        ctxSnap.drawImage(video, 0, 0, snapshotCanvas.width, snapshotCanvas.height);
+        ctxOut.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
+        ctxOut.drawImage(snapshotCanvas, 0, 0);
+        
+        setStatus('Photo captured. Click "Detect Face" to continue.', 'success');
+        detectBtn.disabled = false;
+        downloadBtn.disabled = true;
+      });
+      
+      // Detect face
+      detectBtn.addEventListener('click', async () => {
+        setStatus('Detecting face...', 'loading');
+        detectBtn.disabled = true;
+        
+        try {
           const detection = await faceapi
             .detectSingleFace(snapshotCanvas, new faceapi.TinyFaceDetectorOptions())
             .withFaceLandmarks(true);
-
+          
           if (!detection) {
-            statusP.textContent = '⚠️ No face detected. Try closer/brighter.';
+            setStatus('No face detected. Try again with better lighting.', 'error');
+            detectBtn.disabled = false;
             return;
           }
-
-          statusP.textContent = '✅ Face detected and cropped.';
-
-          // crop & rotate based on eyes
+          
+          setStatus('Face detected! Cropping and aligning...', 'success');
+          
+          // Crop & rotate based on eyes
           const dims = faceapi.matchDimensions(outputCanvas, snapshotCanvas, true);
           const resized = faceapi.resizeResults(detection, dims);
           const { leftEye, rightEye } = resized.landmarks;
-
+          
           const dx = rightEye[0].x - leftEye[0].x;
           const dy = rightEye[0].y - leftEye[0].y;
           const angle = Math.atan2(dy, dx);
           const box = resized.detection.box;
-
+          
+          // Clear and draw cropped, aligned face
           ctxOut.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
           ctxOut.save();
           ctxOut.translate(outputCanvas.width / 2, outputCanvas.height / 2);
@@ -103,24 +379,41 @@
             -box.width / 2, -box.height / 2, box.width, box.height
           );
           ctxOut.restore();
-        };
-
-        // Download
-        document.getElementById('download').onclick = () => {
-          const name = document.getElementById('filename').value || 'face';
-          const link = document.createElement('a');
-          link.download = name + '.png';
-          link.href = outputCanvas.toDataURL();
-          link.click();
-          statusP.textContent = '⬇️ Download started.';
-        };
-
-      } catch (err) {
-        statusP.textContent = '❌ Error: ' + err;
-        console.error(err);
-      }
+          
+          setStatus('Face cropped and aligned. Ready to download.', 'success');
+          downloadBtn.disabled = false;
+          
+        } catch (err) {
+          console.error('Detection error:', err);
+          setStatus('Error detecting face. Please try again.', 'error');
+          detectBtn.disabled = false;
+        }
+      });
+      
+      // Set filename
+      setFilenameBtn.addEventListener('click', () => {
+        const newName = filenameInput.value.trim();
+        if (newName) {
+          filename = newName;
+          updateFilenameDisplay();
+          downloadStatusEl.className = 'status success';
+          downloadStatusEl.innerHTML = `Filename updated to: <span id="current-filename">${filename}.png</span>`;
+        }
+      });
+      
+      // Download image
+      downloadBtn.addEventListener('click', () => {
+        const link = document.createElement('a');
+        link.download = `${filename}.png`;
+        link.href = outputCanvas.toDataURL();
+        link.click();
+        
+        setStatus('Download started!', 'success');
+      });
+      
+      // Initialize filename display
+      updateFilenameDisplay();
     });
   </script>
 </body>
 </html>
-
