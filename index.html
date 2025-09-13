@@ -2,8 +2,8 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Face Test</title>
-  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+  <title>Face Detection Test</title>
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
 </head>
 <body>
   <h2>Camera Test</h2>
@@ -11,18 +11,26 @@
   <p id="status">Loading...</p>
 
   <script>
-    const video = document.getElementById('video');
-    const status = document.getElementById('status');
-
     async function init() {
+      const video = document.getElementById('video');
+      const status = document.getElementById('status');
+
+      // check faceapi loaded
+      if (!window.faceapi) {
+        status.textContent = '❌ face-api.js not loaded!';
+        return;
+      }
+
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         video.srcObject = stream;
         status.textContent = '✅ Camera started.';
 
+        // load models from CDN
         const MODEL_PATH = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
         await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_PATH);
         await faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_PATH);
+
         status.textContent = '✅ Models loaded. Ready!';
       } catch (err) {
         status.textContent = '❌ Error: ' + err;
@@ -30,7 +38,7 @@
       }
     }
 
-    init();
+    window.addEventListener('load', init);
   </script>
 </body>
 </html>
