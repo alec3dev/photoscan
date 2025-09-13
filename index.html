@@ -3,7 +3,6 @@
 <head>
   <meta charset="utf-8">
   <title>Face Capture & Crop</title>
-  <script src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
   <style>
     body { font-family: sans-serif; text-align: center; margin: 10px; }
     video, canvas { max-width: 90%; border: 1px solid #ccc; margin: 5px; }
@@ -27,91 +26,99 @@
   </div>
 
   <script>
-    async function init() {
+    // Dynamically load face-api.js
+    function loadFaceApi() {
+      return new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/face-api.js';
+        script.onload = resolve;
+        script.onerror = reject;
+        document.body.appendChild(script);
+      });
+    }
+
+    window.addEventListener('load', async () => {
+      const statusP = document.getElementById('status');
       const video = document.getElementById('video');
       const snapshotCanvas = document.getElementById('snapshot');
       const outputCanvas = document.getElementById('output');
       const ctxSnap = snapshotCanvas.getContext('2d');
       const ctxOut = outputCanvas.getContext('2d');
-      const statusP = document.getElementById('status');
 
-      // Check face-api loaded
-      if (!window.faceapi) {
-        statusP.textContent = '❌ face-api.js not loaded!';
-        return;
-      }
-
-      // start camera
       try {
+        statusP.textContent = '⏳ Loading face-api.js...';
+        await loadFaceApi();
+        statusP.textContent = '✅ face-api.js loaded.';
+
+        // start camera
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         video.srcObject = stream;
         statusP.textContent = '✅ Camera started.';
+
+        // load models from CDN
+        const MODEL_PATH = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
+        await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_PATH);
+        await faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_PATH);
+        statusP.textContent = '✅ Models loaded. Ready!';
+
+        // Take photo
+        document.getElementById('take').onclick = () => {
+          ctxSnap.drawImage(video, 0, 0, snapshotCanvas.width, snapshotCanvas.height);
+          ctxOut.drawImage(snapshotCanvas, 0, 0);
+          statusP.textContent = '📸 Photo taken.';
+        };
+
+        // Detect face
+        document.getElementById('detect').onclick = async () => {
+          statusP.textContent = '🔍 Detecting face...';
+          const detection = await faceapi
+            .detectSingleFace(snapshotCanvas, new faceapi.TinyFaceDetectorOptions())
+            .withFaceLandmarks(true);
+
+          if (!detection) {
+            statusP.textContent = '⚠️ No face detected. Try closer/brighter.';
+            return;
+          }
+
+          statusP.textContent = '✅ Face detected and cropped.';
+
+          // crop & rotate based on eyes
+          const dims = faceapi.matchDimensions(outputCanvas, snapshotCanvas, true);
+          const resized = faceapi.resizeResults(detection, dims);
+          const { leftEye, rightEye } = resized.landmarks;
+
+          const dx = rightEye[0].x - leftEye[0].x;
+          const dy = rightEye[0].y - leftEye[0].y;
+          const angle = Math.atan2(dy, dx);
+          const box = resized.detection.box;
+
+          ctxOut.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
+          ctxOut.save();
+          ctxOut.translate(outputCanvas.width / 2, outputCanvas.height / 2);
+          ctxOut.rotate(-angle);
+          ctxOut.drawImage(
+            snapshotCanvas,
+            box.x, box.y, box.width, box.height,
+            -box.width / 2, -box.height / 2, box.width, box.height
+          );
+          ctxOut.restore();
+        };
+
+        // Download
+        document.getElementById('download').onclick = () => {
+          const name = document.getElementById('filename').value || 'face';
+          const link = document.createElement('a');
+          link.download = name + '.png';
+          link.href = outputCanvas.toDataURL();
+          link.click();
+          statusP.textContent = '⬇️ Download started.';
+        };
+
       } catch (err) {
-        statusP.textContent = '❌ Camera error: ' + err;
-        return;
+        statusP.textContent = '❌ Error: ' + err;
+        console.error(err);
       }
-
-      // load models from CDN
-      const MODEL_PATH = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
-      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_PATH);
-      await faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_PATH);
-      statusP.textContent = '✅ Models loaded. Ready.';
-
-      // Take photo
-      document.getElementById('take').onclick = () => {
-        ctxSnap.drawImage(video, 0, 0, snapshotCanvas.width, snapshotCanvas.height);
-        ctxOut.drawImage(snapshotCanvas, 0, 0);
-        statusP.textContent = '📸 Photo taken.';
-      };
-
-      // Detect face
-      document.getElementById('detect').onclick = async () => {
-        statusP.textContent = '🔍 Detecting face...';
-        const detection = await faceapi
-          .detectSingleFace(snapshotCanvas, new faceapi.TinyFaceDetectorOptions())
-          .withFaceLandmarks(true);
-
-        if (!detection) {
-          statusP.textContent = '⚠️ No face detected. Try closer/brighter.';
-          return;
-        }
-
-        statusP.textContent = '✅ Face detected and cropped.';
-
-        // crop & rotate based on eyes
-        const dims = faceapi.matchDimensions(outputCanvas, snapshotCanvas, true);
-        const resized = faceapi.resizeResults(detection, dims);
-        const { leftEye, rightEye } = resized.landmarks;
-
-        const dx = rightEye[0].x - leftEye[0].x;
-        const dy = rightEye[0].y - leftEye[0].y;
-        const angle = Math.atan2(dy, dx);
-        const box = resized.detection.box;
-
-        ctxOut.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
-        ctxOut.save();
-        ctxOut.translate(outputCanvas.width / 2, outputCanvas.height / 2);
-        ctxOut.rotate(-angle);
-        ctxOut.drawImage(
-          snapshotCanvas,
-          box.x, box.y, box.width, box.height,
-          -box.width / 2, -box.height / 2, box.width, box.height
-        );
-        ctxOut.restore();
-      };
-
-      // Download
-      document.getElementById('download').onclick = () => {
-        const name = document.getElementById('filename').value || 'face';
-        const link = document.createElement('a');
-        link.download = name + '.png';
-        link.href = outputCanvas.toDataURL();
-        link.click();
-        statusP.textContent = '⬇️ Download started.';
-      };
-    }
-
-    window.addEventListener('load', init);
+    });
   </script>
 </body>
 </html>
