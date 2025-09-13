@@ -1,98 +1,76 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>Face Crop & Rotate</title>
-  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
-  <style>
-    video, canvas, img { max-width: 100%; }
-    #controls { margin-top: 10px; }
-  </style>
-</head>
-<body>
-  <h2>Face Capture & Crop</h2>
+<script>
+  const video = document.getElementById('video');
+  const snapshotCanvas = document.getElementById('snapshot');
+  const outputCanvas = document.getElementById('output');
+  const ctxSnap = snapshotCanvas.getContext('2d');
+  const ctxOut = outputCanvas.getContext('2d');
 
-  <video id="video" width="320" height="240" autoplay playsinline></video>
-  <canvas id="snapshot" width="320" height="240" style="display:none;"></canvas>
-  <canvas id="output" width="320" height="240"></canvas>
+  // add a status paragraph
+  const statusP = document.createElement('p');
+  document.body.appendChild(statusP);
 
-  <div id="controls">
-    <button id="take">📸 Take Photo</button>
-    <button id="detect">🔍 Detect Face</button>
-    <input id="filename" placeholder="File name" />
-    <button id="download">⬇️ Download</button>
-  </div>
-
-  <script>
-    const video = document.getElementById('video');
-    const snapshotCanvas = document.getElementById('snapshot');
-    const outputCanvas = document.getElementById('output');
-    const ctxSnap = snapshotCanvas.getContext('2d');
-    const ctxOut = outputCanvas.getContext('2d');
-
-    async function init() {
-      // start cam
+  async function init() {
+    try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       video.srcObject = stream;
 
-      // load models from CDN
       const MODEL_PATH = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights';
       await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_PATH);
       await faceapi.nets.faceLandmark68TinyNet.loadFromUri(MODEL_PATH);
-      console.log('Models loaded');
+      statusP.textContent = '✅ Models loaded. Ready.';
+    } catch (err) {
+      statusP.textContent = 'Camera error: ' + err;
+    }
+  }
+
+  document.getElementById('take').onclick = () => {
+    ctxSnap.drawImage(video, 0, 0, snapshotCanvas.width, snapshotCanvas.height);
+    ctxOut.drawImage(snapshotCanvas, 0, 0);
+    statusP.textContent = '📸 Photo taken.';
+  };
+
+  document.getElementById('detect').onclick = async () => {
+    statusP.textContent = '🔍 Detecting face...';
+    const detection = await faceapi
+      .detectSingleFace(snapshotCanvas, new faceapi.TinyFaceDetectorOptions())
+      .withFaceLandmarks(true);
+
+    if (!detection) {
+      statusP.textContent = '⚠️ No face detected. Try closer/brighter.';
+      return;
     }
 
-    document.getElementById('take').onclick = () => {
-      // freeze snapshot from video
-      ctxSnap.drawImage(video, 0, 0, snapshotCanvas.width, snapshotCanvas.height);
-      // show snapshot on output canvas as initial preview
-      ctxOut.drawImage(snapshotCanvas, 0, 0);
-    };
+    statusP.textContent = '✅ Face detected and cropped.';
 
-    document.getElementById('detect').onclick = async () => {
-      const detection = await faceapi
-        .detectSingleFace(snapshotCanvas, new faceapi.TinyFaceDetectorOptions())
-        .withFaceLandmarks(true);
+    // crop & rotate face based on eyes
+    const dims = faceapi.matchDimensions(outputCanvas, snapshotCanvas, true);
+    const resized = faceapi.resizeResults(detection, dims);
+    const { leftEye, rightEye } = resized.landmarks;
 
-      if (!detection) {
-        alert('No face detected. Try better light or closer.');
-        return;
-      }
+    const dx = rightEye[0].x - leftEye[0].x;
+    const dy = rightEye[0].y - leftEye[0].y;
+    const angle = Math.atan2(dy, dx);
+    const box = resized.detection.box;
 
-      // crop & rotate face based on eyes
-      const dims = faceapi.matchDimensions(outputCanvas, snapshotCanvas, true);
-      const resized = faceapi.resizeResults(detection, dims);
-      const { leftEye, rightEye } = resized.landmarks;
+    ctxOut.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
+    ctxOut.save();
+    ctxOut.translate(outputCanvas.width/2, outputCanvas.height/2);
+    ctxOut.rotate(-angle);
+    ctxOut.drawImage(
+      snapshotCanvas,
+      box.x, box.y, box.width, box.height,
+      -box.width/2, -box.height/2, box.width, box.height
+    );
+    ctxOut.restore();
+  };
 
-      // angle of rotation
-      const dx = rightEye[0].x - leftEye[0].x;
-      const dy = rightEye[0].y - leftEye[0].y;
-      const angle = Math.atan2(dy, dx);
+  document.getElementById('download').onclick = () => {
+    const link = document.createElement('a');
+    link.download = (document.getElementById('filename').value || 'face') + '.png';
+    link.href = outputCanvas.toDataURL();
+    link.click();
+    statusP.textContent = '⬇️ Download started.';
+  };
 
-      // face box
-      const box = resized.detection.box;
-
-      // clear & rotate onto output canvas
-      ctxOut.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
-      ctxOut.save();
-      ctxOut.translate(outputCanvas.width/2, outputCanvas.height/2);
-      ctxOut.rotate(-angle);
-      ctxOut.drawImage(
-        snapshotCanvas,
-        box.x, box.y, box.width, box.height,
-        -box.width/2, -box.height/2, box.width, box.height
-      );
-      ctxOut.restore();
-    };
-
-    document.getElementById('download').onclick = () => {
-      const link = document.createElement('a');
-      link.download = (document.getElementById('filename').value || 'face') + '.png';
-      link.href = outputCanvas.toDataURL();
-      link.click();
-    };
-
-    init();
-  </script>
-</body>
-</html>
+  init();
+</script>
