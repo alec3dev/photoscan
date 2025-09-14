@@ -180,7 +180,7 @@ function displayResults(){
     const card=document.createElement('div'); card.className='face-card';
     card.innerHTML=`
       <img src="${face.imageData}" class="face-image" alt="Face">
-      <input type="text" class="rename-field" value="${face.id}" data-index="${index}">
+      <input type="text" class="rename-field" value="" placeholder="Enter name for face" data-index="${index}">
       <button class="button download-btn" data-index="${index}">Download</button>
     `;
     resultsDiv.appendChild(card);
@@ -188,14 +188,19 @@ function displayResults(){
 
   document.querySelectorAll('.rename-field').forEach(input=>{
     input.addEventListener('input',()=>{
-      const idx=parseInt(input.dataset.index); detectedFaces[idx].id=input.value.trim()||`face_${idx+1}`;
+      const idx=parseInt(input.dataset.index);
+      detectedFaces[idx].id = input.value.trim() || `face_${idx+1}`;
     });
   });
 
   document.querySelectorAll('.download-btn').forEach(btn=>{
-    btn.addEventListener('click',()=>{ const idx=parseInt(btn.dataset.index); downloadFace(idx); });
+    btn.addEventListener('click',()=>{ 
+      const idx=parseInt(btn.dataset.index);
+      downloadFace(idx); 
+    });
   });
 }
+
 
 function downloadFace(index){
   const face=detectedFaces[index]; if(!face) return;
@@ -229,3 +234,4 @@ initializeFaceAPI();
 </script>
 </body>
 </html>
+
