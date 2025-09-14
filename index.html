@@ -63,7 +63,7 @@
             width: 100%;
             max-width: 640px;
             border-radius: 10px;
-            transform: scaleX(-1);
+            transform: scaleX(-1); /* Mirror the camera */
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
         }
         
@@ -262,7 +262,7 @@
         
         // Global variables
         let stream = null;
-        let currentFacingMode = 'environment';
+        let currentFacingMode = 'user'; // Start with front camera
         let model = null;
         
         // Initialize TensorFlow.js model
@@ -332,8 +332,11 @@
             canvas.height = video.videoHeight;
             const ctx = canvas.getContext('2d');
             
-            // Draw video frame to canvas
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            // Draw video frame to canvas (correcting for mirror effect)
+            ctx.save();
+            ctx.scale(-1, 1);
+            ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+            ctx.restore();
             
             try {
                 // Detect faces
