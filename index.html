@@ -1,125 +1,551 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>Document Scanner</title>
-<link rel="stylesheet" href="styles.css">
-<script async src="https://docs.opencv.org/4.x/opencv.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Single-file Document Scanner (no contrast change)</title>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial; margin: 14px; color: #111; }
+    h1 { font-size: 18px; margin-bottom: 8px; }
+    #container { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+    #left, #right { flex: 1 1 420px; min-width: 320px; }
+    video { width: 100%; max-width: 640px; border-radius: 6px; background: #000; }
+    canvas { width: 100%; max-width: 640px; border-radius: 6px; background: #eee; }
+    .controls { margin-top: 8px; display:flex; gap:8px; flex-wrap:wrap; }
+    button { padding: 8px 12px; border-radius:6px; border:1px solid #ccc; background:#f7f7f7; cursor:pointer; }
+    button.primary { background:#2563eb; color:white; border-color:#1e40af; }
+    .note { font-size:13px; color:#444; margin-top:10px; }
+    #previewWrap { position: relative; display:inline-block; }
+    #overlayCanvas { position:absolute; left:0; top:0; pointer-events:none; }
+    #manualPoints { margin-top: 8px; display:flex; gap:6px; flex-wrap:wrap; }
+    input[type=number] { width:80px; }
+    .tiny { font-size:12px; padding:6px 8px; }
+  </style>
 </head>
 <body>
-<div class="container">
-  <h1>Document Scanner</h1>
-  <input type="file" id="fileInput" accept="image/*">
-  <button id="processBtn">Process Document</button>
-  <canvas id="sourceCanvas"></canvas>
-  <canvas id="resultCanvas"></canvas>
-</div>
+  <h1>Document Scanner — single HTML (no contrast change)</h1>
 
-<script>
-let srcCanvas = document.getElementById('sourceCanvas');
-let resCanvas = document.getElementById('resultCanvas');
-let srcCtx = srcCanvas.getContext('2d');
-let img = new Image();
+  <div id="container">
+    <div id="left">
+      <div id="previewWrap">
+        <video id="video" playsinline autoplay></video>
+        <canvas id="overlayCanvas"></canvas>
+      </div>
 
-document.getElementById('fileInput').addEventListener('change', e => {
-  let file = e.target.files[0];
-  if (!file) return;
-  let reader = new FileReader();
-  reader.onload = ev => {
-    img.onload = () => {
-      srcCanvas.width = img.width;
-      srcCanvas.height = img.height;
-      srcCtx.drawImage(img, 0, 0);
-    };
-    img.src = ev.target.result;
-  };
-  reader.readAsDataURL(file);
-});
+      <div class="controls">
+        <button id="btnCapture" class="primary">Capture frame</button>
+        <button id="btnScan">Auto-detect & Scan</button>
+        <button id="btnManual" title="Switch to manual point editing">Manual points</button>
+        <button id="btnRetry">Retry camera</button>
+      </div>
 
-document.getElementById('processBtn').addEventListener('click', () => {
-  if (typeof cv === 'undefined') {
-    alert('OpenCV.js not loaded yet');
-    return;
+      <div class="note">
+        Tips: Position the document mostly within the camera view with good lighting. This tool will detect edges and warp the original color image (no contrast/threshold applied).
+      </div>
+
+      <div style="margin-top:12px;">
+        <label><input type="checkbox" id="showEdges" /> Show edge-detection overlay (debug)</label>
+      </div>
+    </div>
+
+    <div id="right">
+      <div>
+        <div style="font-weight:600; margin-bottom:6px;">Scanned result</div>
+        <canvas id="resultCanvas"></canvas>
+      </div>
+
+      <div class="controls" style="margin-top:8px">
+        <button id="btnDownload">Download JPG</button>
+        <button id="btnSavePng">Download PNG</button>
+        <button id="btnClear">Clear</button>
+      </div>
+
+      <div id="manualPoints" style="display:none;">
+        <div>Manual corner coordinates (x,y). You can also drag points on the preview when manual mode is ON.</div>
+        <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+          <div>
+            TL <input id="p0" type="number" class="tiny" /> , <input id="p0y" type="number" class="tiny" />
+          </div>
+          <div>
+            TR <input id="p1" type="number" class="tiny" /> , <input id="p1y" type="number" class="tiny" />
+          </div>
+          <div>
+            BR <input id="p2" type="number" class="tiny" /> , <input id="p2y" type="number" class="tiny" />
+          </div>
+          <div>
+            BL <input id="p3" type="number" class="tiny" /> , <input id="p3y" type="number" class="tiny" />
+          </div>
+        </div>
+        <div style="margin-top:8px">
+          <button id="btnApplyPoints">Apply points</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- OpenCV.js (WASM build) -->
+  <script async src="https://docs.opencv.org/4.x/opencv.js" ></script>
+
+  <script>
+  // Wait for OpenCV to be ready
+  let cvReady = false;
+  let video = document.getElementById('video');
+  let overlay = document.getElementById('overlayCanvas');
+  let resultCanvas = document.getElementById('resultCanvas');
+  let overlayCtx = overlay.getContext('2d');
+  let resultCtx = resultCanvas.getContext('2d');
+  let stream = null;
+  let lastCapturedImage = null; // ImageData or HTMLImageElement
+  let manualMode = false;
+  let draggablePoints = [];
+  let selectedPointIndex = -1;
+  let showEdgesCheckbox = document.getElementById('showEdges');
+
+  function onOpenCvReady() {
+    cvReady = true;
+    console.log('OpenCV loaded');
+    startCamera();
   }
-  let src = cv.imread(srcCanvas);
 
-  // 1. Convert to gray and detect edges
-  let gray = new cv.Mat();
-  cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-  cv.GaussianBlur(gray, gray, new cv.Size(5, 5), 0);
-  let edges = new cv.Mat();
-  cv.Canny(gray, edges, 75, 200);
+  // OpenCV loads and sets global "cv". Use onRuntimeInitialized when available
+  if (typeof cv !== 'undefined') {
+    if (cv.getBuildInformation) {
+      onOpenCvReady();
+    } else {
+      cv['onRuntimeInitialized']=onOpenCvReady;
+    }
+  } else {
+    // fallback if script not loaded yet (script tag is async)
+    window.addEventListener('opencvready', onOpenCvReady);
+    // Note: many browsers will set cv by the time script loads; the onRuntimeInitialized above handles it.
+  }
 
-  // 2. Find contours and pick the largest quadrilateral
-  let contours = new cv.MatVector();
-  let hierarchy = new cv.Mat();
-  cv.findContours(edges, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
-  let maxArea = 0;
-  let docContour = null;
-  for (let i = 0; i < contours.size(); ++i) {
-    let cnt = contours.get(i);
-    let peri = cv.arcLength(cnt, true);
-    let approx = new cv.Mat();
-    cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
-    if (approx.rows === 4) {
-      let area = cv.contourArea(approx);
-      if (area > maxArea) {
-        maxArea = area;
-        docContour = approx;
+  async function startCamera() {
+    try {
+      if (stream) {
+        // stop old tracks
+        stream.getTracks().forEach(t => t.stop());
+      }
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+      video.srcObject = stream;
+      await video.play();
+
+      // size overlay to video
+      resizeCanvases();
+      window.addEventListener('resize', resizeCanvases);
+      attachOverlayEvents();
+    } catch (e) {
+      alert('Camera error: ' + e.message);
+      console.error(e);
+    }
+  }
+
+  function resizeCanvases() {
+    const w = video.videoWidth || 640;
+    const h = video.videoHeight || 480;
+    overlay.width = w;
+    overlay.height = h;
+    resultCanvas.width = Math.min(1200, w);
+    resultCanvas.height = Math.min(1600, Math.round(h * (resultCanvas.width / w)));
+    overlay.style.width = video.clientWidth + 'px';
+    overlay.style.height = video.clientHeight + 'px';
+  }
+
+  document.getElementById('btnRetry').addEventListener('click', startCamera);
+
+  document.getElementById('btnCapture').addEventListener('click', () => {
+    captureFrame();
+  });
+
+  document.getElementById('btnScan').addEventListener('click', async () => {
+    if (!lastCapturedImage) {
+      captureFrame();
+    }
+    await autoDetectAndWarp();
+  });
+
+  document.getElementById('btnDownload').addEventListener('click', () => downloadResult('image/jpeg', 0.92));
+  document.getElementById('btnSavePng').addEventListener('click', () => downloadResult('image/png', 1.0));
+  document.getElementById('btnClear').addEventListener('click', () => {
+    resultCtx.clearRect(0,0,resultCanvas.width,resultCanvas.height);
+    lastCapturedImage = null;
+    draggablePoints = [];
+    drawOverlay();
+  });
+
+  document.getElementById('btnManual').addEventListener('click', () => {
+    manualMode = !manualMode;
+    document.getElementById('manualPoints').style.display = manualMode ? 'block' : 'none';
+    document.getElementById('btnManual').textContent = manualMode ? 'Manual: ON' : 'Manual points';
+    drawOverlay();
+  });
+
+  document.getElementById('btnApplyPoints').addEventListener('click', () => {
+    applyManualPointsFromInputs();
+    warpUsingPoints(draggablePoints);
+  });
+
+  function captureFrame() {
+    // draw video frame to ephemeral canvas and save
+    const w = video.videoWidth, h = video.videoHeight;
+    if (!w || !h) { alert('Video not ready yet'); return; }
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(video, 0, 0, w, h);
+    lastCapturedImage = new Image();
+    lastCapturedImage.onload = () => {
+      // set overlay and default points
+      resizeCanvases();
+      setupDefaultPoints();
+      drawOverlay();
+      // draw preview (no scan yet)
+      resultCtx.clearRect(0,0,resultCanvas.width,resultCanvas.height);
+      // optionally show captured preview in result canvas
+      const scale = resultCanvas.width / lastCapturedImage.width;
+      resultCanvas.height = Math.round(lastCapturedImage.height * scale);
+      resultCtx.drawImage(lastCapturedImage, 0, 0, resultCanvas.width, resultCanvas.height);
+    };
+    lastCapturedImage.src = c.toDataURL('image/png');
+  }
+
+  // Setup default four corner points (TL, TR, BR, BL) as a margin inside the image
+  function setupDefaultPoints() {
+    if (!lastCapturedImage) return;
+    const w = overlay.width, h = overlay.height;
+    const margin = Math.round(Math.min(w,h) * 0.08);
+    draggablePoints = [
+      {x: margin, y: margin},           // TL
+      {x: w - margin, y: margin},       // TR
+      {x: w - margin, y: h - margin},   // BR
+      {x: margin, y: h - margin}        // BL
+    ];
+    pushPointsToInputs();
+  }
+
+  // Auto-detect document edges using OpenCV and approximate largest quadrilateral
+  async function autoDetectAndWarp() {
+    if (!cvReady) { alert('OpenCV not ready yet'); return; }
+    if (!lastCapturedImage) captureFrame();
+    // create cv.Mat from lastCapturedImage
+    const img = cv.imread(lastCapturedImage);
+    try {
+      const points = findDocumentContour(img);
+      if (!points) {
+        alert('Could not auto-detect document. Try toggling "Manual points" and dragging corners.');
+        return;
+      }
+      draggablePoints = points;
+      pushPointsToInputs();
+      drawOverlay();
+      warpUsingPoints(draggablePoints);
+    } finally {
+      img.delete();
+    }
+  }
+
+  // Find the biggest 4-corner contour. Returns array of 4 points {x,y} ordered TL,TR,BR,BL or null
+  function findDocumentContour(srcMat) {
+    // We'll work on a copy
+    let mat = new cv.Mat();
+    cv.cvtColor(srcMat, mat, cv.COLOR_RGBA2GRAY);
+
+    // Use a small blur to reduce noise (this does not change final output — final warp uses original image)
+    cv.GaussianBlur(mat, mat, new cv.Size(5,5), 0);
+
+    // Canny edges
+    let edges = new cv.Mat();
+    cv.Canny(mat, edges, 50, 150, 3, false);
+
+    if (showEdgesCheckbox.checked) {
+      // show edges overlay (scale to overlay)
+      showEdges(edges);
+    } else {
+      clearOverlayCanvas();
+    }
+
+    // findContours
+    let contours = new cv.MatVector();
+    let hierarchy = new cv.Mat();
+    cv.findContours(edges, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+
+    let maxArea = 0;
+    let bestQuad = null;
+    for (let i = 0; i < contours.size(); ++i) {
+      let cnt = contours.get(i);
+      let peri = cv.arcLength(cnt, true);
+      let approx = new cv.Mat();
+      cv.approxPolyDP(cnt, approx, 0.02 * peri, true);
+      if (approx.rows === 4) {
+        let area = Math.abs(cv.contourArea(approx));
+        if (area > maxArea) {
+          // optionally filter by area and aspect ratio
+          maxArea = area;
+          // extract points
+          let p = [];
+          for (let r = 0; r < 4; r++) {
+            p.push({x: approx.intAt(r,0), y: approx.intAt(r,1)});
+          }
+          bestQuad = orderQuadPoints(p); // order as TL,TR,BR,BL
+        }
+      }
+      approx.delete(); cnt.delete();
+    }
+
+    // Free mats
+    mat.delete(); edges.delete(); contours.delete(); hierarchy.delete();
+
+    return bestQuad;
+  }
+
+  // Show the edges Mat on overlay (for debug)
+  function showEdges(edgesMat) {
+    // draw into overlay canvas (scale 1:1 since overlay has same pixel size)
+    const tmp = new cv.Mat();
+    cv.cvtColor(edgesMat, tmp, cv.COLOR_GRAY2RGBA);
+    // convert tmp to ImageData using canvas
+    let imgData = new ImageData(new Uint8ClampedArray(tmp.data), tmp.cols, tmp.rows);
+    // draw to overlay canvas
+    overlay.width = tmp.cols; overlay.height = tmp.rows;
+    overlayCtx.putImageData(imgData, 0, 0);
+    tmp.delete();
+    // overlay canvas now holds edges - to keep UI consistent we will draw points on top by drawing again after
+  }
+
+  function clearOverlayCanvas() {
+    overlayCtx.clearRect(0,0,overlay.width,overlay.height);
+  }
+
+  // Orders the 4 points to TL, TR, BR, BL
+  function orderQuadPoints(pts) {
+    // pts: [{x,y},...]
+    // Compute sum and difference
+    let sums = pts.map(p => p.x + p.y);
+    let diffs = pts.map(p => p.x - p.y);
+    // TL = min sum, BR = max sum, TR = min diff, BL = max diff
+    let tl = pts[sums.indexOf(Math.min(...sums))];
+    let br = pts[sums.indexOf(Math.max(...sums))];
+    let tr = pts[diffs.indexOf(Math.min(...diffs))];
+    let bl = pts[diffs.indexOf(Math.max(...diffs))];
+    return [tl, tr, br, bl];
+  }
+
+  // Apply perspective warp on original captured image using given points (pixel coordinates in image space)
+  function warpUsingPoints(points) {
+    if (!lastCapturedImage) { alert('Capture first'); return; }
+    // Build source and destination cv.Mat
+    let src = cv.imread(lastCapturedImage);
+    // Points in order TL TR BR BL
+    const wA = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+    const wB = Math.hypot(points[2].x - points[3].x, points[2].y - points[3].y);
+    const maxWidth = Math.max(wA, wB) | 0;
+
+    const hA = Math.hypot(points[0].x - points[3].x, points[0].y - points[3].y);
+    const hB = Math.hypot(points[1].x - points[2].x, points[1].y - points[2].y);
+    const maxHeight = Math.max(hA, hB) | 0;
+
+    if (maxWidth <= 0 || maxHeight <= 0) { alert('Invalid points'); src.delete(); return; }
+
+    // Source mat of points
+    let srcPts = cv.matFromArray(4,1,cv.CV_32FC2, [
+      points[0].x, points[0].y,
+      points[1].x, points[1].y,
+      points[2].x, points[2].y,
+      points[3].x, points[3].y
+    ]);
+
+    let dstPts = cv.matFromArray(4,1,cv.CV_32FC2, [
+      0, 0,
+      maxWidth-1, 0,
+      maxWidth-1, maxHeight-1,
+      0, maxHeight-1
+    ]);
+
+    let M = cv.getPerspectiveTransform(srcPts, dstPts);
+    let dst = new cv.Mat();
+    let dsize = new cv.Size(maxWidth, maxHeight);
+    cv.warpPerspective(src, dst, M, dsize, cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+
+    // draw dst into result canvas (scale down to fit)
+    const maxCanvasWidth = 1200;
+    let scale = Math.min(1, maxCanvasWidth / dst.cols);
+    resultCanvas.width = Math.round(dst.cols * scale);
+    resultCanvas.height = Math.round(dst.rows * scale);
+    // convert dst to imageData
+    cv.imshow(resultCanvas, dst);
+
+    // cleanup
+    srcPts.delete(); dstPts.delete(); M.delete(); src.delete(); dst.delete();
+
+    // Ensure overlay matches new result drawing
+    drawOverlay();
+  }
+
+  function downloadResult(mime, quality) {
+    if (!resultCanvas || resultCanvas.width === 0) { alert('No result to download'); return; }
+    const dataUrl = resultCanvas.toDataURL(mime, quality);
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = 'scanned.' + (mime === 'image/png' ? 'png' : 'jpg');
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  // Overlay drawing: shows polygon points and allows drag in manual mode
+  function drawOverlay() {
+    overlay.width = overlay.width; // clear
+    const w = overlay.width, h = overlay.height;
+    overlayCtx.clearRect(0,0,w,h);
+
+    // If there is a captured image, show faint scaled preview background (optional)
+    if (lastCapturedImage) {
+      // draw scaled preview behind overlay (so user sees the frame)
+      overlayCtx.globalAlpha = 0.05;
+      overlayCtx.drawImage(lastCapturedImage, 0, 0, w, h);
+      overlayCtx.globalAlpha = 1;
+    } else {
+      // draw live video faint
+      overlayCtx.fillStyle = 'rgba(0,0,0,0.0)';
+      overlayCtx.fillRect(0,0,w,h);
+    }
+
+    // draw polygon
+    if (draggablePoints && draggablePoints.length === 4) {
+      overlayCtx.lineWidth = 3;
+      overlayCtx.strokeStyle = manualMode ? '#0ea5e9' : '#34d399';
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(draggablePoints[0].x, draggablePoints[0].y);
+      for (let i=1;i<4;i++) overlayCtx.lineTo(draggablePoints[i].x, draggablePoints[i].y);
+      overlayCtx.closePath();
+      overlayCtx.stroke();
+
+      // draw handles
+      for (let i=0;i<4;i++) {
+        overlayCtx.fillStyle = i===selectedPointIndex ? '#ef4444' : '#fffb';
+        overlayCtx.beginPath();
+        overlayCtx.arc(draggablePoints[i].x, draggablePoints[i].y, 8, 0, Math.PI*2);
+        overlayCtx.fill();
+        overlayCtx.strokeStyle = '#1112';
+        overlayCtx.lineWidth = 1;
+        overlayCtx.stroke();
       }
     }
   }
-  if (!docContour) {
-    alert('Could not find a document contour');
-    src.delete(); gray.delete(); edges.delete();
-    contours.delete(); hierarchy.delete();
-    return;
+
+  // Mouse/touch interaction on overlay to drag corner points when manualMode = true
+  function attachOverlayEvents() {
+    let rect = overlay.getBoundingClientRect();
+    function getPos(e) {
+      rect = overlay.getBoundingClientRect();
+      if (e.touches && e.touches.length) e = e.touches[0];
+      return { x: (e.clientX - rect.left) * (overlay.width / rect.width),
+               y: (e.clientY - rect.top) * (overlay.height / rect.height) };
+    }
+
+    overlay.addEventListener('mousedown', (ev) => {
+      if (!manualMode) return;
+      const pos = getPos(ev);
+      selectedPointIndex = hitTestPoints(pos);
+      if (selectedPointIndex >= 0) {
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+      }
+    });
+
+    overlay.addEventListener('touchstart', (ev) => {
+      if (!manualMode) return;
+      const pos = getPos(ev);
+      selectedPointIndex = hitTestPoints(pos);
+      if (selectedPointIndex >= 0) {
+        window.addEventListener('touchmove', onMove, {passive:false});
+        window.addEventListener('touchend', onUp);
+      }
+      ev.preventDefault();
+    });
+
+    function onMove(ev) {
+      const pos = getPos(ev);
+      if (selectedPointIndex >= 0 && draggablePoints[selectedPointIndex]) {
+        draggablePoints[selectedPointIndex].x = clamp(pos.x, 0, overlay.width-1);
+        draggablePoints[selectedPointIndex].y = clamp(pos.y, 0, overlay.height-1);
+        pushPointsToInputs();
+        drawOverlay();
+      }
+    }
+    function onUp(ev) {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+      selectedPointIndex = -1;
+    }
   }
 
-  // 3. Order points and compute perspective transform
-  let pts = [];
-  for (let i = 0; i < 4; i++) {
-    pts.push({x: docContour.intPtr(i,0)[0], y: docContour.intPtr(i,0)[1]});
+  function hitTestPoints(pos) {
+    if (!draggablePoints) return -1;
+    for (let i=0;i<draggablePoints.length;i++) {
+      const dx = pos.x - draggablePoints[i].x;
+      const dy = pos.y - draggablePoints[i].y;
+      if (Math.hypot(dx,dy) < 16) return i;
+    }
+    return -1;
   }
-  // sort: top-left, top-right, bottom-right, bottom-left
-  pts.sort((a,b)=>a.y-b.y);
-  let top = pts.slice(0,2).sort((a,b)=>a.x-b.x);
-  let bottom = pts.slice(2).sort((a,b)=>a.x-b.x);
-  let ordered = [top[0], top[1], bottom[1], bottom[0]];
 
-  let widthTop = Math.hypot(ordered[1].x - ordered[0].x, ordered[1].y - ordered[0].y);
-  let widthBottom = Math.hypot(ordered[2].x - ordered[3].x, ordered[2].y - ordered[3].y);
-  let maxWidth = Math.max(widthTop, widthBottom);
-  let heightLeft = Math.hypot(ordered[3].x - ordered[0].x, ordered[3].y - ordered[0].y);
-  let heightRight = Math.hypot(ordered[2].x - ordered[1].x, ordered[2].y - ordered[1].y);
-  let maxHeight = Math.max(heightLeft, heightRight);
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
-  let srcTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-    ordered[0].x, ordered[0].y,
-    ordered[1].x, ordered[1].y,
-    ordered[2].x, ordered[2].y,
-    ordered[3].x, ordered[3].y
-  ]);
-  let dstTri = cv.matFromArray(4, 1, cv.CV_32FC2, [
-    0, 0,
-    maxWidth, 0,
-    maxWidth, maxHeight,
-    0, maxHeight
-  ]);
-  let M = cv.getPerspectiveTransform(srcTri, dstTri);
-  let dst = new cv.Mat();
-  cv.warpPerspective(src, dst, M, new cv.Size(maxWidth, maxHeight));
+  // sync inputs with points
+  function pushPointsToInputs() {
+    if (!draggablePoints || draggablePoints.length !== 4) return;
+    for (let i=0;i<4;i++) {
+      document.getElementById('p' + i).value = Math.round(draggablePoints[i].x);
+      document.getElementById('p' + i + 'y').value = Math.round(draggablePoints[i].y);
+    }
+  }
 
-  resCanvas.width = maxWidth;
-  resCanvas.height = maxHeight;
-  cv.imshow(resCanvas, dst);
+  function applyManualPointsFromInputs() {
+    let pts = [];
+    for (let i=0;i<4;i++) {
+      const x = parseFloat(document.getElementById('p'+i).value) || 0;
+      const y = parseFloat(document.getElementById('p'+i+'y').value) || 0;
+      pts.push({x: x, y: y});
+    }
+    draggablePoints = pts;
+    drawOverlay();
+  }
 
-  // cleanup
-  src.delete(); gray.delete(); edges.delete();
-  contours.delete(); hierarchy.delete(); docContour.delete();
-  srcTri.delete(); dstTri.delete(); M.delete(); dst.delete();
-});
-</script>
+  // Called periodically to maintain overlay when video is running
+  setInterval(() => {
+    if (!manualMode && !lastCapturedImage) {
+      // refresh overlay to show nothing but keep size consistent
+      resizeCanvases();
+      clearOverlayCanvas();
+    }
+    drawOverlay();
+  }, 250);
+
+  // Utility: If user toggles showEdges, clear overlay or redraw
+  showEdgesCheckbox.addEventListener('change', () => {
+    drawOverlay();
+  });
+
+  // If user drags a point, update inputs displayed
+  // (handled by pushPointsToInputs in drag handling)
+
+  // Helper to read Image into cv.Mat from dataURL-friendly source (we used cv.imread on Image object)
+  // cv.imread accepts an <img> or <canvas> element.
+
+  // When OpenCV is loaded, call startCamera (if not started earlier)
+  if (typeof cv !== 'undefined' && cv.getBuildInformation) {
+    onOpenCvReady();
+  } else {
+    // ensure it's called when ready via onRuntimeInitialized above
+  }
+
+  // Extra: try to auto-capture and scan on load (disabled by default)
+  //window.addEventListener('load', () => { /* optional: auto start */ });
+
+  </script>
 </body>
 </html>
