@@ -251,8 +251,123 @@
         <p>Face Scanner with Eye Alignment &copy; 2023 | Uses TensorFlow.js and Blazeface model</p>
     </footer>
 
-<script>
-async function extractAndCorrectFace(sourceCanvas, face, index) {
+    <script>
+        // DOM elements
+        const video = document.getElementById('video');
+        const startCameraBtn = document.getElementById('startCamera');
+        const captureBtn = document.getElementById('capture');
+        const switchCameraBtn = document.getElementById('switchCamera');
+        const statusDiv = document.getElementById('status');
+        const facesContainer = document.getElementById('facesContainer');
+        
+        // Global variables
+        let stream = null;
+        let currentFacingMode = 'user'; // Start with front camera
+        let model = null;
+        
+        // Initialize TensorFlow.js model
+        async function loadFaceDetectionModel() {
+            statusDiv.textContent = "Loading face detection model...";
+            statusDiv.className = "status scanning";
+            
+            try {
+                model = await blazeface.load();
+                statusDiv.textContent = "Model loaded successfully!";
+                statusDiv.className = "status success";
+            } catch (error) {
+                statusDiv.textContent = "Failed to load face detection model.";
+                statusDiv.className = "status error";
+                console.error(error);
+            }
+        }
+        
+        // Start camera
+        async function startCamera() {
+            statusDiv.textContent = "Accessing camera...";
+            statusDiv.className = "status scanning";
+            
+            try {
+                const constraints = {
+                    video: {
+                        facingMode: currentFacingMode,
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                };
+                
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = stream;
+                
+                startCameraBtn.disabled = true;
+                captureBtn.disabled = false;
+                switchCameraBtn.disabled = false;
+                
+                statusDiv.textContent = "Camera active. Position faces in the frame and click Capture.";
+                statusDiv.className = "status success";
+            } catch (error) {
+                statusDiv.textContent = "Error accessing camera: " + error.message;
+                statusDiv.className = "status error";
+                console.error("Camera error: ", error);
+            }
+        }
+        
+        // Switch between front and back cameras
+        async function switchCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            
+            currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+            await startCamera();
+        }
+        
+        // Capture image and detect faces
+        async function captureImage() {
+            statusDiv.textContent = "Capturing image and detecting faces...";
+            statusDiv.className = "status scanning";
+            
+            // Create a canvas to capture the image
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            
+            // Draw video frame to canvas (correcting for mirror effect)
+            ctx.save();
+            ctx.scale(-1, 1);
+            ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
+            ctx.restore();
+            
+            try {
+                // Detect faces
+                const predictions = await model.estimateFaces(canvas, false);
+                
+                if (predictions.length > 0) {
+                    statusDiv.textContent = `Detected ${predictions.length} face(s). Processing...`;
+                    
+                    // Clear previous faces
+                    facesContainer.innerHTML = '';
+                    
+                    // Process each face
+                    for (let i = 0; i < predictions.length; i++) {
+                        const face = predictions[i];
+                        await extractAndCorrectFace(canvas, face, i);
+                    }
+                    
+                    statusDiv.textContent = `Processed ${predictions.length} face(s). You can now rename and download them.`;
+                    statusDiv.className = "status success";
+                } else {
+                    statusDiv.textContent = "No faces detected. Try again.";
+                    statusDiv.className = "status error";
+                }
+            } catch (error) {
+                statusDiv.textContent = "Error detecting faces: " + error.message;
+                statusDiv.className = "status error";
+                console.error("Face detection error: ", error);
+            }
+        }
+        
+       async function extractAndCorrectFace(sourceCanvas, face, index) {
   return new Promise((resolve) => {
     // Coordinates of the box
     const start = face.topLeft;
@@ -336,8 +451,14 @@ async function extractAndCorrectFace(sourceCanvas, face, index) {
     resolve();
   });
 }
-</script>
-
+        
+        // Event listeners
+        startCameraBtn.addEventListener('click', startCamera);
+        switchCameraBtn.addEventListener('click', switchCamera);
+        captureBtn.addEventListener('click', captureImage);
+        
+        // Initialize the app
+        loadFaceDetectionModel();
+    </script>
 </body>
 </html>
-
