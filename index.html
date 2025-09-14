@@ -18,10 +18,7 @@
       border-radius: 8px;
       box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
     }
-    h1 {
-      color: #333;
-      text-align: center;
-    }
+    h1 { color: #333; text-align: center; }
     .upload-section {
       margin-bottom: 20px;
       padding: 15px;
@@ -38,13 +35,8 @@
       cursor: pointer;
       margin: 5px;
     }
-    .button:disabled {
-      background-color: #cccccc;
-      cursor: not-allowed;
-    }
-    .button:hover:not(:disabled) {
-      background-color: #45a049;
-    }
+    .button:disabled { background-color: #cccccc; cursor: not-allowed; }
+    .button:hover:not(:disabled) { background-color: #45a049; }
     .results {
       margin-top: 20px;
       display: grid;
@@ -58,28 +50,15 @@
       text-align: center;
       background-color: #f9f9f9;
     }
-    .face-image {
-      max-width: 100%;
-      height: auto;
-      border-radius: 3px;
-    }
+    .face-image { max-width: 100%; height: auto; border-radius: 3px; }
     .status {
       margin: 10px 0;
       padding: 10px;
       border-radius: 4px;
     }
-    .loading {
-      background-color: #e0f7fa;
-      color: #006064;
-    }
-    .success {
-      background-color: #e8f5e9;
-      color: #2e7d32;
-    }
-    .error {
-      background-color: #ffebee;
-      color: #c62828;
-    }
+    .loading { background-color: #e0f7fa; color: #006064; }
+    .success { background-color: #e8f5e9; color: #2e7d32; }
+    .error { background-color: #ffebee; color: #c62828; }
     textarea {
       width: 100%;
       height: 100px;
@@ -98,266 +77,282 @@
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Face Detection and Cropping Tool</h1>
+<div class="container">
+  <h1>Face Detection and Cropping Tool</h1>
 
-    <div class="instructions">
-      <h3>Instructions:</h3>
-      <ol>
-        <li>Upload an image containing faces</li>
-        <li>Enter numbers/names (one per line) to assign to detected faces</li>
-        <li>Click "Detect and Crop Faces" to process the image</li>
-        <li>Download the cropped face images using the download buttons</li>
-      </ol>
-    </div>
-
-    <div class="upload-section">
-      <h3>Upload Image</h3>
-      <input type="file" id="imageUpload" accept="image/*">
-      <div id="imagePreview"></div>
-    </div>
-
-    <div>
-      <h3>Enter Identifiers (one per line):</h3>
-      <textarea id="identifiers" placeholder="Enter numbers or names, one per line. These will be used as filenames for the cropped faces."></textarea>
-    </div>
-
-    <div>
-      <button id="processButton" class="button" disabled>Detect and Crop Faces</button>
-      <button id="downloadAllButton" class="button" disabled>Download All</button>
-    </div>
-
-    <div id="status" class="status"></div>
-
-    <h3>Detected Faces:</h3>
-    <div id="results" class="results"></div>
+  <div class="instructions">
+    <h3>Instructions:</h3>
+    <ol>
+      <li>Upload an image containing faces</li>
+      <li>Enter numbers/names (one per line) to assign to detected faces</li>
+      <li>Click "Detect and Crop Faces" to process the image</li>
+      <li>Download the cropped face images using the download buttons</li>
+    </ol>
   </div>
 
-  <!-- Face API.js -->
-  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
-  <!-- JSZip -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <div class="upload-section">
+    <h3>Upload Image</h3>
+    <input type="file" id="imageUpload" accept="image/*">
+    <div id="imagePreview"></div>
+  </div>
 
-  <script>
-    let imageFile = null;
-    let detectedFaces = [];
+  <div>
+    <h3>Enter Identifiers (one per line):</h3>
+    <textarea id="identifiers" placeholder="Enter numbers or names, one per line. These will be used as filenames for the cropped faces."></textarea>
+  </div>
 
-    const imageUpload = document.getElementById('imageUpload');
-    const imagePreview = document.getElementById('imagePreview');
-    const identifiersTextarea = document.getElementById('identifiers');
-    const processButton = document.getElementById('processButton');
-    const downloadAllButton = document.getElementById('downloadAllButton');
-    const statusDiv = document.getElementById('status');
-    const resultsDiv = document.getElementById('results');
+  <div>
+    <button id="processButton" class="button" disabled>Detect and Crop Faces</button>
+    <button id="downloadAllButton" class="button" disabled>Download All</button>
+  </div>
 
-    imageUpload.addEventListener('change', handleImageUpload);
-    processButton.addEventListener('click', processImage);
-    downloadAllButton.addEventListener('click', downloadAllFaces);
+  <div id="status" class="status"></div>
 
-    async function initializeFaceAPI() {
-      statusDiv.textContent = 'Loading face detection models...';
-      statusDiv.className = 'status loading';
-      try {
-        await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
-        await faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
-        statusDiv.textContent = 'Models loaded successfully. Ready to detect faces.';
-        statusDiv.className = 'status success';
-      } catch (error) {
-        statusDiv.textContent = `Error loading models: ${error.message}`;
-        statusDiv.className = 'status error';
-        console.error(error);
-      }
+  <h3>Detected Faces:</h3>
+  <div id="results" class="results"></div>
+</div>
+
+<!-- Face API.js -->
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
+<!-- JSZip -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<script>
+let imageFile = null;
+let detectedFaces = [];
+
+const imageUpload = document.getElementById('imageUpload');
+const imagePreview = document.getElementById('imagePreview');
+const identifiersTextarea = document.getElementById('identifiers');
+const processButton = document.getElementById('processButton');
+const downloadAllButton = document.getElementById('downloadAllButton');
+const statusDiv = document.getElementById('status');
+const resultsDiv = document.getElementById('results');
+
+imageUpload.addEventListener('change', handleImageUpload);
+processButton.addEventListener('click', processImage);
+downloadAllButton.addEventListener('click', downloadAllFaces);
+
+async function initializeFaceAPI() {
+  statusDiv.textContent = 'Loading face detection models...';
+  statusDiv.className = 'status loading';
+  try {
+    await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
+    await faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
+    statusDiv.textContent = 'Models loaded successfully. Ready to detect faces.';
+    statusDiv.className = 'status success';
+  } catch (error) {
+    statusDiv.textContent = `Error loading models: ${error.message}`;
+    statusDiv.className = 'status error';
+    console.error(error);
+  }
+}
+
+function handleImageUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  imageFile = file;
+  resultsDiv.innerHTML = '';
+  detectedFaces = [];
+  downloadAllButton.disabled = true;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    imagePreview.innerHTML = `<img src="${e.target.result}" style="max-width: 100%; max-height: 300px;">`;
+    processButton.disabled = false;
+  };
+  reader.readAsDataURL(file);
+}
+
+function centerPoint(points) {
+  const xs = points.map(p => p.x);
+  const ys = points.map(p => p.y);
+  return {
+    x: xs.reduce((a,b)=>a+b,0)/points.length,
+    y: ys.reduce((a,b)=>a+b,0)/points.length
+  };
+}
+
+async function processImage() {
+  if (!imageFile) return;
+  statusDiv.textContent = 'Detecting faces...';
+  statusDiv.className = 'status loading';
+  processButton.disabled = true;
+  try {
+    const identifiers = identifiersTextarea.value.split('\n').map(id => id.trim()).filter(id => id !== '');
+    const img = await faceapi.bufferToImage(imageFile);
+    const detections = await faceapi
+      .detectAllFaces(img, new faceapi.TinyFaceDetectorOptions())
+      .withFaceLandmarks();
+    if (detections.length === 0) {
+      statusDiv.textContent = 'No faces detected in the image.';
+      statusDiv.className = 'status error';
+      processButton.disabled = false;
+      return;
     }
+    statusDiv.textContent = `Detected ${detections.length} faces. Processing...`;
 
-    function handleImageUpload(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-      imageFile = file;
-      resultsDiv.innerHTML = '';
-      detectedFaces = [];
-      downloadAllButton.disabled = true;
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        imagePreview.innerHTML = `<img src="${e.target.result}" style="max-width: 100%; max-height: 300px;">`;
-        processButton.disabled = false;
-      };
-      reader.readAsDataURL(file);
-    }
+    detectedFaces = detections.map((detection, index) => {
+      const landmarks = detection.landmarks;
+      const box = detection.detection.box;
+      const eyes = [landmarks.getLeftEye(), landmarks.getRightEye()];
+      const mouth = landmarks.getMouth();
+      const eyesY = (eyes[0][0].y + eyes[1][0].y) / 2;
+      const mouthY = mouth[0].y;
+      const eyesMouthDistance = Math.abs(mouthY - eyesY);
 
-    function centerPoint(points) {
-      const xs = points.map(p => p.x);
-      const ys = points.map(p => p.y);
+      const x = Math.max(0, box.x - eyesMouthDistance / 2);
+      const y = Math.max(0, box.y - eyesMouthDistance * 1.5);
+      const width = Math.min(img.width - x, box.width + eyesMouthDistance);
+      const height = Math.min(img.height - y, box.height + eyesMouthDistance * 1.75);
+
+      // rotation angle
+      const leftEyeCenter = centerPoint(landmarks.getLeftEye());
+      const rightEyeCenter = centerPoint(landmarks.getRightEye());
+      const dx = rightEyeCenter.x - leftEyeCenter.x;
+      const dy = rightEyeCenter.y - leftEyeCenter.y;
+      const angle = Math.atan2(dy, dx);
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+
+      ctx.translate(width / 2, height / 2);
+      ctx.rotate(-angle);
+      ctx.drawImage(
+        img,
+        x, y, width, height,
+        -width / 2, -height / 2, width, height
+      );
+      ctx.setTransform(1,0,0,1,0,0);
+
+      // tight crop using landmarks
+      const allPoints = [
+        ...landmarks.getJawOutline(),
+        ...landmarks.getLeftEye(),
+        ...landmarks.getRightEye(),
+        ...landmarks.getNose(),
+        ...landmarks.getMouth()
+      ];
+      const xs = allPoints.map(p => p.x);
+      const ys = allPoints.map(p => p.y);
+      const minX = Math.min(...xs);
+      const minY = Math.min(...ys);
+      const maxX = Math.max(...xs);
+      const maxY = Math.max(...ys);
+
+      const paddingX = (maxX - minX) * 0.2;
+      const paddingY = (maxY - minY) * 0.3;
+
+      const cropX = Math.max(0, minX - paddingX - x);
+      const cropY = Math.max(0, minY - paddingY - y);
+      const cropWidth = Math.min(width - cropX, (maxX - minX) + 2*paddingX);
+      const cropHeight = Math.min(height - cropY, (maxY - minY) + 2*paddingY);
+
+      const croppedCanvas = document.createElement('canvas');
+      croppedCanvas.width = cropWidth;
+      croppedCanvas.height = cropHeight;
+      const croppedCtx = croppedCanvas.getContext('2d');
+      croppedCtx.drawImage(canvas, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+
+      const identifier = index < identifiers.length ? identifiers[index] : `face_${index + 1}`;
       return {
-        x: xs.reduce((a,b)=>a+b,0)/points.length,
-        y: ys.reduce((a,b)=>a+b,0)/points.length
+        id: identifier,
+        imageData: croppedCanvas.toDataURL('image/jpeg'),
+        x, y, width, height
       };
-    }
+    });
 
-    async function processImage() {
-      if (!imageFile) return;
-      statusDiv.textContent = 'Detecting faces...';
-      statusDiv.className = 'status loading';
-      processButton.disabled = true;
-      try {
-        const identifiers = identifiersTextarea.value.split('\n').map(id => id.trim()).filter(id => id !== '');
-        const img = await faceapi.bufferToImage(imageFile);
-        const detections = await faceapi
-          .detectAllFaces(img, new faceapi.TinyFaceDetectorOptions())
-          .withFaceLandmarks();
-        if (detections.length === 0) {
-          statusDiv.textContent = 'No faces detected in the image.';
-          statusDiv.className = 'status error';
-          processButton.disabled = false;
-          return;
-        }
-        statusDiv.textContent = `Detected ${detections.length} faces. Processing...`;
+    detectedFaces.sort((a, b) => Math.abs(a.y - b.y) < a.height*0.5 ? a.x-b.x : a.y-b.y);
+    detectedFaces.forEach((face,index)=>{
+      if(index<identifiers.length) face.id=identifiers[index];
+      else face.id=`face_${index+1}`;
+    });
 
-        detectedFaces = detections.map((detection, index) => {
-          const landmarks = detection.landmarks;
-          const box = detection.detection.box;
-          const eyes = [landmarks.getLeftEye(), landmarks.getRightEye()];
-          const mouth = landmarks.getMouth();
-          const eyesY = (eyes[0][0].y + eyes[1][0].y) / 2;
-          const mouthY = mouth[0].y;
-          const eyesMouthDistance = Math.abs(mouthY - eyesY);
+    displayResults();
+    statusDiv.textContent = `Successfully processed ${detectedFaces.length} faces.`;
+    statusDiv.className = 'status success';
+    downloadAllButton.disabled = false;
+  } catch (error) {
+    statusDiv.textContent = `Error processing image: ${error.message}`;
+    statusDiv.className = 'status error';
+    console.error(error);
+    processButton.disabled = false;
+  }
+}
 
-          const x = Math.max(0, box.x - eyesMouthDistance / 2);
-          const y = Math.max(0, box.y - eyesMouthDistance * 1.5);
-          const width = Math.min(img.width - x, box.width + eyesMouthDistance);
-          const height = Math.min(img.height - y, box.height + eyesMouthDistance * 1.75);
+function displayResults() {
+  resultsDiv.innerHTML = '';
+  detectedFaces.forEach(face => {
+    const card = document.createElement('div');
+    card.className = 'face-card';
+    card.innerHTML = `
+      <img src="${face.imageData}" class="face-image" alt="Cropped face">
+      <p>${face.id}</p>
+      <button class="button download-btn" data-id="${face.id}">Download</button>
+    `;
+    resultsDiv.appendChild(card);
+  });
+  document.querySelectorAll('.download-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-id');
+      downloadFace(id);
+    });
+  });
+}
 
-          // rotation angle between eyes
-          const leftEyeCenter = centerPoint(landmarks.getLeftEye());
-          const rightEyeCenter = centerPoint(landmarks.getRightEye());
-          const dx = rightEyeCenter.x - leftEyeCenter.x;
-          const dy = rightEyeCenter.y - leftEyeCenter.y;
-          const angle = Math.atan2(dy, dx); // radians
+function downloadFace(id) {
+  const face = detectedFaces.find(f => f.id===id);
+  if(!face) return;
+  const link = document.createElement('a');
+  link.href = face.imageData;
+  link.download = `${id}.jpg`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
 
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
+async function downloadAllFaces() {
+  if(detectedFaces.length===0) return;
+  statusDiv.textContent = 'Preparing download...';
+  statusDiv.className = 'status loading';
+  try {
+    const zip = new JSZip();
+    detectedFaces.forEach(face=>{
+      const data = face.imageData.split(',')[1];
+      const blob = base64ToBlob(data,'image/jpeg');
+      zip.file(`${face.id}.jpg`, blob);
+    });
+    const content = await zip.generateAsync({type:'blob'});
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(content);
+    link.download = 'cropped_faces.zip';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    statusDiv.textContent='Download prepared successfully.';
+    statusDiv.className='status success';
+  } catch(error){
+    statusDiv.textContent=`Error creating zip file: ${error.message}`;
+    statusDiv.className='status error';
+    console.error(error);
+  }
+}
 
-          ctx.translate(width / 2, height / 2);
-          ctx.rotate(-angle); // rotate to make eyes horizontal
-          ctx.drawImage(
-            img,
-            x, y, width, height,
-            -width / 2, -height / 2, width, height
-          );
-          ctx.setTransform(1,0,0,1,0,0);
+function base64ToBlob(base64, mimeType){
+  const byteCharacters = atob(base64);
+  const byteArrays = [];
+  for(let offset=0; offset<byteCharacters.length; offset+=512){
+    const slice = byteCharacters.slice(offset, offset+512);
+    const byteNumbers = new Array(slice.length);
+    for(let i=0;i<slice.length;i++) byteNumbers[i]=slice.charCodeAt(i);
+    const byteArray = new Uint8Array(byteNumbers);
+    byteArrays.push(byteArray);
+  }
+  return new Blob(byteArrays,{type:mimeType});
+}
 
-          const identifier = index < identifiers.length ? identifiers[index] : `face_${index + 1}`;
-
-          return {
-            id: identifier,
-            imageData: canvas.toDataURL('image/jpeg'),
-            x: x,
-            y: y,
-            width: width,
-            height: height
-          };
-        });
-
-        detectedFaces.sort((a, b) => {
-          if (Math.abs(a.y - b.y) < a.height * 0.5) {
-            return a.x - b.x;
-          }
-          return a.y - b.y;
-        });
-        detectedFaces.forEach((face, index) => {
-          if (index < identifiers.length) {
-            face.id = identifiers[index];
-          } else {
-            face.id = `face_${index + 1}`;
-          }
-        });
-        displayResults();
-        statusDiv.textContent = `Successfully processed ${detectedFaces.length} faces.`;
-        statusDiv.className = 'status success';
-        downloadAllButton.disabled = false;
-      } catch (error) {
-        statusDiv.textContent = `Error processing image: ${error.message}`;
-        statusDiv.className = 'status error';
-        console.error(error);
-        processButton.disabled = false;
-      }
-    }
-
-    function displayResults() {
-      resultsDiv.innerHTML = '';
-      detectedFaces.forEach(face => {
-        const card = document.createElement('div');
-        card.className = 'face-card';
-        card.innerHTML = `
-          <img src="${face.imageData}" class="face-image" alt="Cropped face">
-          <p>${face.id}</p>
-          <button class="button download-btn" data-id="${face.id}">Download</button>
-        `;
-        resultsDiv.appendChild(card);
-      });
-      document.querySelectorAll('.download-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const id = btn.getAttribute('data-id');
-          downloadFace(id);
-        });
-      });
-    }
-
-    function downloadFace(id) {
-      const face = detectedFaces.find(f => f.id === id);
-      if (!face) return;
-      const link = document.createElement('a');
-      link.href = face.imageData;
-      link.download = `${id}.jpg`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-
-    async function downloadAllFaces() {
-      if (detectedFaces.length === 0) return;
-      statusDiv.textContent = 'Preparing download...';
-      statusDiv.className = 'status loading';
-      try {
-        const zip = new JSZip();
-        detectedFaces.forEach(face => {
-          const data = face.imageData.split(',')[1];
-          const blob = base64ToBlob(data, 'image/jpeg');
-          zip.file(`${face.id}.jpg`, blob);
-        });
-        const content = await zip.generateAsync({type: 'blob'});
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(content);
-        link.download = 'cropped_faces.zip';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        statusDiv.textContent = 'Download prepared successfully.';
-        statusDiv.className = 'status success';
-      } catch (error) {
-        statusDiv.textContent = `Error creating zip file: ${error.message}`;
-        statusDiv.className = 'status error';
-        console.error(error);
-      }
-    }
-
-    function base64ToBlob(base64, mimeType) {
-      const byteCharacters = atob(base64);
-      const byteArrays = [];
-      for (let offset = 0; offset < byteCharacters.length; offset += 512) {
-        const slice = byteCharacters.slice(offset, offset + 512);
-        const byteNumbers = new Array(slice.length);
-        for (let i = 0; i < slice.length; i++) {
-          byteNumbers[i] = slice.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        byteArrays.push(byteArray);
-      }
-      return new Blob(byteArrays, {type: mimeType});
-    }
-
-    initializeFaceAPI();
-  </script>
+initializeFaceAPI();
+</script>
 </body>
 </html>
