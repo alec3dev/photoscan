@@ -1,371 +1,174 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multi-Face Scanner</title>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface"></script>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        
-        body {
-            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
-            color: white;
-            min-height: 100vh;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        
-        .container {
-            max-width: 1200px;
-            width: 100%;
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 20px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-        }
-        
-        header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        
-        h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-        }
-        
-        .app-description {
-            font-size: 1.1rem;
-            opacity: 0.9;
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        
-        .camera-section {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin-bottom: 30px;
-        }
-        
-        #video {
-            width: 100%;
-            max-width: 640px;
-            border-radius: 10px;
-            transform: scaleX(-1);
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-        }
-        
-        .controls {
-            display: flex;
-            gap: 15px;
-            margin-top: 20px;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-        
-        button {
-            padding: 12px 25px;
-            border: none;
-            border-radius: 50px;
-            background: #ff3366;
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-        }
-        
-        button:hover {
-            background: #ff4d7c;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3);
-        }
-        
-        button:active {
-            transform: translateY(0);
-        }
-        
-        button:disabled {
-            background: #cccccc;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-        
-        .faces-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            justify-content: center;
-            margin: 20px 0;
-        }
-        
-        .face-card {
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 10px;
-            padding: 15px;
-            width: 200px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        
-        .face-image {
-            width: 150px;
-            height: 150px;
-            object-fit: cover;
-            border-radius: 5px;
-            margin-bottom: 10px;
-            background: #000;
-        }
-        
-        .face-name {
-            width: 100%;
-            padding: 8px;
-            border: none;
-            border-radius: 5px;
-            margin-bottom: 10px;
-            text-align: center;
-        }
-        
-        .status {
-            margin: 15px 0;
-            padding: 10px;
-            border-radius: 8px;
-            text-align: center;
-            font-weight: 500;
-        }
-        
-        .scanning {
-            background: rgba(255, 193, 7, 0.2);
-        }
-        
-        .success {
-            background: rgba(40, 167, 69, 0.2);
-        }
-        
-        .error {
-            background: rgba(220, 53, 69, 0.2);
-        }
-        
-        .instructions {
-            background: rgba(255, 255, 255, 0.15);
-            padding: 20px;
-            border-radius: 10px;
-            margin-top: 30px;
-            max-width: 800px;
-        }
-        
-        .instructions h2 {
-            margin-bottom: 15px;
-            text-align: center;
-        }
-        
-        .instructions ol {
-            padding-left: 20px;
-        }
-        
-        .instructions li {
-            margin-bottom: 10px;
-            line-height: 1.5;
-        }
-        
-        footer {
-            margin-top: 30px;
-            text-align: center;
-            opacity: 0.7;
-            font-size: 0.9rem;
-        }
-        
-        @media (max-width: 600px) {
-            h1 {
-                font-size: 2rem;
-            }
-            
-            .controls {
-                flex-direction: column;
-                align-items: center;
-            }
-            
-            button {
-                width: 100%;
-                max-width: 300px;
-            }
-            
-            .face-card {
-                width: 100%;
-                max-width: 250px;
-            }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multi-Face Scanner</title>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface"></script>
+<style>
+/* ======= STYLES SAME AS YOUR ORIGINAL CODE ======= */
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+body { background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d); color: white; min-height: 100vh; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+.container { max-width: 1200px; width: 100%; background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border-radius: 20px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
+header { text-align: center; margin-bottom: 30px; }
+h1 { font-size: 2.5rem; margin-bottom: 10px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+.app-description { font-size: 1.1rem; opacity: 0.9; max-width: 800px; margin: 0 auto; }
+.camera-section { display: flex; flex-direction: column; align-items: center; margin-bottom: 30px; }
+#video { width: 100%; max-width: 640px; border-radius: 10px; transform: scaleX(-1); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+.controls { display: flex; gap: 15px; margin-top: 20px; flex-wrap: wrap; justify-content: center; }
+button { padding: 12px 25px; border: none; border-radius: 50px; background: #ff3366; color: white; font-weight: bold; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+button:hover { background: #ff4d7c; transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.3); }
+button:active { transform: translateY(0); }
+button:disabled { background: #cccccc; cursor: not-allowed; transform: none; box-shadow: none; }
+.faces-container { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; margin: 20px 0; }
+.face-card { background: rgba(255,255,255,0.15); border-radius: 10px; padding: 15px; width: 200px; display: flex; flex-direction: column; align-items: center; }
+.face-image { width: 150px; height: 150px; object-fit: cover; border-radius: 5px; margin-bottom: 10px; background: #000; }
+.face-name { width: 100%; padding: 8px; border: none; border-radius: 5px; margin-bottom: 10px; text-align: center; }
+.status { margin: 15px 0; padding: 10px; border-radius: 8px; text-align: center; font-weight: 500; }
+.scanning { background: rgba(255,193,7,0.2); }
+.success { background: rgba(40,167,69,0.2); }
+.error { background: rgba(220,53,69,0.2); }
+.instructions { background: rgba(255,255,255,0.15); padding: 20px; border-radius: 10px; margin-top: 30px; max-width: 800px; }
+.instructions h2 { margin-bottom: 15px; text-align: center; }
+.instructions ol { padding-left: 20px; }
+.instructions li { margin-bottom: 10px; line-height: 1.5; }
+footer { margin-top: 30px; text-align: center; opacity: 0.7; font-size: 0.9rem; }
+@media (max-width: 600px) {
+    h1 { font-size: 2rem; }
+    .controls { flex-direction: column; align-items: center; }
+    button { width: 100%; max-width: 300px; }
+    .face-card { width: 100%; max-width: 250px; }
+}
+</style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>Multi-Face Scanner</h1>
-            <p class="app-description">Scan a photo with multiple faces, extract each face, correct rotation, rename, and download as individual JPG files.</p>
-        </header>
-        
-        <div class="camera-section">
-            <video id="video" autoplay playsinline></video>
-            <div class="controls">
-                <button id="startCamera">Start Camera</button>
-                <button id="capture" disabled>Capture Photo</button>
-                <button id="switchCamera" disabled>Switch Camera</button>
-            </div>
-        </div>
-        
-        <div class="status" id="status">Camera not started. Click "Start Camera" to begin.</div>
-        
-        <h2>Detected Faces</h2>
-        <div class="faces-container" id="facesContainer">
-            <!-- Faces will be added here dynamically -->
-        </div>
-        
-        <div class="instructions">
-            <h2>How to Use</h2>
-            <ol>
-                <li>Click "Start Camera" to begin using your camera</li>
-                <li>Position the photo with multiple faces in the camera view</li>
-                <li>Click "Capture Photo" to take a picture</li>
-                <li>The app will detect all faces, extract them, and correct rotation</li>
-                <li>Rename each face using the input fields</li>
-                <li>Click "Download" under each face to save them individually</li>
-            </ol>
+<div class="container">
+    <header>
+        <h1>Multi-Face Scanner</h1>
+        <p class="app-description">Scan a photo with multiple faces, extract each face, correct rotation, rename, and download as individual JPG files.</p>
+    </header>
+    
+    <div class="camera-section">
+        <video id="video" autoplay playsinline></video>
+        <div class="controls">
+            <button id="startCamera">Start Camera</button>
+            <button id="capture" disabled>Capture Photo</button>
+            <button id="switchCamera" disabled>Switch Camera</button>
         </div>
     </div>
     
-    <footer>
-        <p>Multi-Face Scanner App &copy; 2023 | Uses TensorFlow.js and Blazeface model</p>
-    </footer>
+    <div class="status" id="status">Camera not started. Click "Start Camera" to begin.</div>
+    
+    <h2>Detected Faces</h2>
+    <div class="faces-container" id="facesContainer"></div>
+    
+    <div class="instructions">
+        <h2>How to Use</h2>
+        <ol>
+            <li>Click "Start Camera" to begin using your camera</li>
+            <li>Position the photo with multiple faces in the camera view</li>
+            <li>Click "Capture Photo" to take a picture</li>
+            <li>The app will detect all faces, extract them, and correct rotation</li>
+            <li>Rename each face using the input fields</li>
+            <li>Click "Download" under each face to save them individually</li>
+        </ol>
+    </div>
+</div>
 
-    <script>
-        // DOM elements
-        const video = document.getElementById('video');
-        const startCameraBtn = document.getElementById('startCamera');
-        const captureBtn = document.getElementById('capture');
-        const switchCameraBtn = document.getElementById('switchCamera');
-        const statusDiv = document.getElementById('status');
-        const facesContainer = document.getElementById('facesContainer');
-        
-        // Global variables
-        let stream = null;
-        let currentFacingMode = 'environment';
-        let model = null;
-        let capturedImageData = null;
-        
-        // Initialize TensorFlow.js model
-        async function loadFaceDetectionModel() {
-            statusDiv.textContent = "Loading face detection model...";
-            statusDiv.className = "status scanning";
-            
-            try {
-                model = await blazeface.load();
-                statusDiv.textContent = "Model loaded successfully!";
-                statusDiv.className = "status success";
-            } catch (error) {
-                statusDiv.textContent = "Failed to load face detection model.";
-                statusDiv.className = "status error";
-                console.error(error);
-            }
+<footer>
+    <p>Multi-Face Scanner App &copy; 2023 | Uses TensorFlow.js and Blazeface model</p>
+</footer>
+
+<script>
+// DOM elements
+const video = document.getElementById('video');
+const startCameraBtn = document.getElementById('startCamera');
+const captureBtn = document.getElementById('capture');
+const switchCameraBtn = document.getElementById('switchCamera');
+const statusDiv = document.getElementById('status');
+const facesContainer = document.getElementById('facesContainer');
+
+// Global variables
+let stream = null;
+let currentFacingMode = 'environment';
+let model = null;
+
+// Load BlazeFace model
+async function loadFaceDetectionModel() {
+    statusDiv.textContent = "Loading face detection model...";
+    statusDiv.className = "status scanning";
+    try {
+        model = await blazeface.load();
+        statusDiv.textContent = "Model loaded successfully!";
+        statusDiv.className = "status success";
+    } catch (err) {
+        statusDiv.textContent = "Failed to load face detection model.";
+        statusDiv.className = "status error";
+        console.error(err);
+    }
+}
+
+// Start camera
+async function startCamera() {
+    statusDiv.textContent = "Accessing camera...";
+    statusDiv.className = "status scanning";
+    try {
+        if (stream) stream.getTracks().forEach(t => t.stop());
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: currentFacingMode, width: { ideal: 1280 }, height: { ideal: 720 } }
+        });
+        video.srcObject = stream;
+        startCameraBtn.disabled = true;
+        captureBtn.disabled = false;
+        switchCameraBtn.disabled = false;
+        statusDiv.textContent = "Camera active. Position faces and click Capture.";
+        statusDiv.className = "status success";
+    } catch (err) {
+        statusDiv.textContent = "Error accessing camera: " + err.message;
+        statusDiv.className = "status error";
+        console.error(err);
+    }
+}
+
+// Switch camera
+async function switchCamera() {
+    currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+    await startCamera();
+}
+
+// Capture and process image
+async function captureImage() {
+    statusDiv.textContent = "Capturing image and detecting faces...";
+    statusDiv.className = "status scanning";
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    try {
+        const predictions = await model.estimateFaces(canvas, false);
+        if (predictions.length === 0) {
+            statusDiv.textContent = "No faces detected. Try again.";
+            statusDiv.className = "status error";
+            return;
         }
-        
-        // Start camera
-        async function startCamera() {
-            statusDiv.textContent = "Accessing camera...";
-            statusDiv.className = "status scanning";
-            
-            try {
-                const constraints = {
-                    video: {
-                        facingMode: currentFacingMode,
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
-                    }
-                };
-                
-                stream = await navigator.mediaDevices.getUserMedia(constraints);
-                video.srcObject = stream;
-                
-                startCameraBtn.disabled = true;
-                captureBtn.disabled = false;
-                switchCameraBtn.disabled = false;
-                
-                statusDiv.textContent = "Camera active. Position faces in the frame and click Capture.";
-                statusDiv.className = "status success";
-            } catch (error) {
-                statusDiv.textContent = "Error accessing camera: " + error.message;
-                statusDiv.className = "status error";
-                console.error("Camera error: ", error);
-            }
+        statusDiv.textContent = `Detected ${predictions.length} face(s). Processing...`;
+        facesContainer.innerHTML = '';
+        for (let i = 0; i < predictions.length; i++) {
+            await extractAndCorrectFace(canvas, predictions[i], i);
         }
-        
-        // Switch between front and back cameras
-        async function switchCamera() {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-            }
-            
-            currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
-            await startCamera();
-        }
-        
-        // Capture image and detect faces
-        async function captureImage() {
-            statusDiv.textContent = "Capturing image and detecting faces...";
-            statusDiv.className = "status scanning";
-            
-            // Create a canvas to capture the image
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
-            
-            // Draw video frame to canvas
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            try {
-                // Detect faces
-                const predictions = await model.estimateFaces(canvas, false);
-                
-                if (predictions.length > 0) {
-                    statusDiv.textContent = `Detected ${predictions.length} face(s). Processing...`;
-                    
-                    // Clear previous faces
-                    facesContainer.innerHTML = '';
-                    
-                    // Process each face
-                    for (let i = 0; i < predictions.length; i++) {
-                        const face = predictions[i];
-                        await extractAndCorrectFace(canvas, face, i);
-                    }
-                    
-                    statusDiv.textContent = `Processed ${predictions.length} face(s). You can now rename and download them.`;
-                    statusDiv.className = "status success";
-                } else {
-                    statusDiv.textContent = "No faces detected. Try again.";
-                    statusDiv.className = "status error";
-                }
-            } catch (error) {
-                statusDiv.textContent = "Error detecting faces: " + error.message;
-                statusDiv.className = "status error";
-                console.error("Face detection error: ", error);
-            }
-        }
-        
-        // Extract and correct a single face
+        statusDiv.textContent = `Processed ${predictions.length} face(s). You can now rename and download them.`;
+        statusDiv.className = "status success";
+    } catch (err) {
+        statusDiv.textContent = "Error detecting faces: " + err.message;
+        statusDiv.className = "status error";
+        console.error(err);
+    }
+}
+
+// Extract and rotate a face
 async function extractAndCorrectFace(sourceCanvas, face, index) {
     return new Promise((resolve) => {
         const faceCanvas = document.createElement('canvas');
@@ -376,35 +179,31 @@ async function extractAndCorrectFace(sourceCanvas, face, index) {
         const width = end[0] - start[0];
         const height = end[1] - start[1];
         const padding = Math.min(width, height) * 0.2;
-
         const size = Math.max(width, height) + padding * 2;
         faceCanvas.width = size;
         faceCanvas.height = size;
 
-        // Compute rotation angle using eyes
-        let rotationAngle = 0;
+        // rotation using eyes
+        let angle = 0;
         if (face.landmarks && face.landmarks.length >= 2) {
-            const rightEye = face.landmarks[0]; // BlazeFace: [rightEye, leftEye, ...]
+            const rightEye = face.landmarks[0];
             const leftEye = face.landmarks[1];
-            rotationAngle = Math.atan2(rightEye[1] - leftEye[1], rightEye[0] - leftEye[0]);
+            angle = Math.atan2(rightEye[1] - leftEye[1], rightEye[0] - leftEye[0]);
         }
 
-        // Center of the face crop
         const centerX = width / 2 + start[0];
         const centerY = height / 2 + start[1];
 
-        // Apply rotation around the center
-        faceCtx.translate(size / 2, size / 2);
-        faceCtx.rotate(rotationAngle);
-        faceCtx.translate(-size / 2, -size / 2);
+        faceCtx.translate(size/2, size/2);
+        faceCtx.rotate(angle);
+        faceCtx.translate(-size/2, -size/2);
 
-        // Draw the face with padding
         faceCtx.drawImage(
             sourceCanvas,
             start[0] - padding,
             start[1] - padding,
-            width + padding * 2,
-            height + padding * 2,
+            width + padding*2,
+            height + padding*2,
             0,
             0,
             size,
@@ -419,19 +218,19 @@ async function extractAndCorrectFace(sourceCanvas, face, index) {
         const faceImg = document.createElement('img');
         faceImg.className = 'face-image';
         faceImg.src = faceDataUrl;
-        faceImg.alt = `Face ${index + 1}`;
+        faceImg.alt = `Face ${index+1}`;
 
         const nameInput = document.createElement('input');
         nameInput.type = 'text';
         nameInput.className = 'face-name';
-        nameInput.placeholder = `Person ${index + 1}`;
-        nameInput.value = `person_${index + 1}`;
+        nameInput.placeholder = `Person ${index+1}`;
+        nameInput.value = `person_${index+1}`;
 
         const downloadBtn = document.createElement('button');
         downloadBtn.textContent = 'Download';
-        downloadBtn.onclick = function () {
+        downloadBtn.onclick = () => {
             const link = document.createElement('a');
-            link.download = `${nameInput.value || `person_${index + 1}`}.jpg`;
+            link.download = `${nameInput.value || `person_${index+1}`}.jpg`;
             link.href = faceDataUrl;
             link.click();
         };
@@ -445,57 +244,13 @@ async function extractAndCorrectFace(sourceCanvas, face, index) {
     });
 }
 
-                
-                // Create a data URL for the face image
-                const faceDataUrl = faceCanvas.toDataURL('image/jpeg');
-                
-                // Create a card for the face
-                const faceCard = document.createElement('div');
-                faceCard.className = 'face-card';
-                
-                // Create image element
-                const faceImg = document.createElement('img');
-                faceImg.className = 'face-image';
-                faceImg.src = faceDataUrl;
-                faceImg.alt = `Face ${index + 1}`;
-                
-                // Create input for naming
-                const nameInput = document.createElement('input');
-                nameInput.type = 'text';
-                nameInput.className = 'face-name';
-                nameInput.placeholder = `Person ${index + 1}`;
-                nameInput.value = `person_${index + 1}`;
-                
-                // Create download button
-                const downloadBtn = document.createElement('button');
-                downloadBtn.textContent = 'Download';
-                downloadBtn.onclick = function() {
-                    const link = document.createElement('a');
-                    link.download = `${nameInput.value || `person_${index + 1}`}.jpg`;
-                    link.href = faceDataUrl;
-                    link.click();
-                };
-                
-                // Add elements to the card
-                faceCard.appendChild(faceImg);
-                faceCard.appendChild(nameInput);
-                faceCard.appendChild(downloadBtn);
-                
-                // Add card to the container
-                facesContainer.appendChild(faceCard);
-                
-                resolve();
-            });
-        }
-        
-        // Event listeners
-        startCameraBtn.addEventListener('click', startCamera);
-        switchCameraBtn.addEventListener('click', switchCamera);
-        captureBtn.addEventListener('click', captureImage);
-        
-        // Initialize the app
-        loadFaceDetectionModel();
-    </script>
+// Event listeners
+startCameraBtn.addEventListener('click', startCamera);
+switchCameraBtn.addEventListener('click', switchCamera);
+captureBtn.addEventListener('click', captureImage);
+
+// Load model
+loadFaceDetectionModel();
+</script>
 </body>
 </html>
-
