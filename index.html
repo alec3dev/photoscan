@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Face Detection Nose-Centered 2:3 Crop YES</title>
+<title>Face Detection Nose-Centered 2:3 Crop</title>
 <style>
   body { font-family: Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; background-color: #f5f5f5; }
   .container { background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
@@ -13,7 +13,7 @@
   .button:disabled { background-color: #cccccc; cursor: not-allowed; }
   .results { margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap: 10px; }
   .face-card { border: 1px solid #ddd; border-radius: 4px; padding: 10px; text-align: center; background-color: #f9f9f9; }
-  .face-image { max-width: 100%; height: auto; border-radius: 3px; }
+  .face-image { width: 100%; height: auto; border-radius: 3px; }
   .status { margin: 10px 0; padding: 10px; border-radius: 4px; }
   .loading { background-color: #e0f7fa; color: #006064; }
   .success { background-color: #e8f5e9; color: #2e7d32; }
@@ -107,10 +107,9 @@ function handleImageUpload(event) {
   reader.readAsDataURL(file);
 }
 
-// Helper to get center point
-function centerPoint(points){
-  const sum = points.reduce((acc,p)=>({x:acc.x+p.x,y:acc.y+p.y}), {x:0,y:0});
-  return {x: sum.x/points.length, y: sum.y/points.length};
+function centerPoint(points) {
+  const sum = points.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
+  return { x: sum.x / points.length, y: sum.y / points.length };
 }
 
 async function processImage() {
@@ -123,59 +122,63 @@ async function processImage() {
     const identifiers = identifiersTextarea.value.split('\n').map(id=>id.trim()).filter(id=>id!=='');
     const img = await faceapi.bufferToImage(imageFile);
     const detections = await faceapi.detectAllFaces(img,new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks();
+
     if(detections.length===0){
       statusDiv.textContent='No faces detected.';
       statusDiv.className='status error';
       processButton.disabled=false;
       return;
     }
+
     statusDiv.textContent=`Detected ${detections.length} faces. Processing...`;
 
     detectedFaces = detections.map((detection,index)=>{
-      const landmarks=detection.landmarks;
-      const box=detection.detection.box;
+      const landmarks = detection.landmarks;
+      const box = detection.detection.box;
 
       // Rotation based on eyes
-      const leftEye=centerPoint(landmarks.getLeftEye());
-      const rightEye=centerPoint(landmarks.getRightEye());
-      const angle=Math.atan2(rightEye.y-leftEye.y,rightEye.x-leftEye.x);
+      const leftEye = centerPoint(landmarks.getLeftEye());
+      const rightEye = centerPoint(landmarks.getRightEye());
+      const angle = Math.atan2(rightEye.y-leftEye.y,rightEye.x-leftEye.x);
 
-      const canvas=document.createElement('canvas');
-      canvas.width=img.width;
-      canvas.height=img.height;
-      const ctx=canvas.getContext('2d');
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
       ctx.translate(img.width/2,img.height/2);
       ctx.rotate(-angle);
       ctx.drawImage(img,-img.width/2,-img.height/2);
       ctx.setTransform(1,0,0,1,0,0);
 
-      // Nose-centered crop
-      const nose=centerPoint(landmarks.getNose());
-      const centerX=nose.x;
-      const centerY=nose.y;
+      // Nose-centered 2:3 rectangle
+      const nose = centerPoint(landmarks.getNose());
+      const centerX = nose.x;
+      const centerY = nose.y;
 
-      // Crop size with hair+neck
-      let cropHeight=(Math.max(...landmarks.getJawOutline().map(p=>p.y))-Math.min(...landmarks.getLeftEye().map(p=>p.y)))*1.7;
-      let cropWidth=cropHeight*(2/3);
+      let cropHeight = (Math.max(...landmarks.getJawOutline().map(p=>p.y)) - Math.min(...landmarks.getLeftEye().map(p=>p.y))) * 1.7;
+      let cropWidth = cropHeight * (2/3);
 
-      const jawWidth=Math.max(...landmarks.getJawOutline().map(p=>p.x))-Math.min(...landmarks.getJawOutline().map(p=>p.x));
-      if(cropWidth<jawWidth*1.2) cropWidth=jawWidth*1.2;
+      const jawWidth = Math.max(...landmarks.getJawOutline().map(p=>p.x)) - Math.min(...landmarks.getJawOutline().map(p=>p.x));
+      if(cropWidth < jawWidth*1.2) cropWidth = jawWidth*1.2;
 
-      let minX=centerX-cropWidth/2;
-      let minY=centerY-cropHeight/2;
-      if(minX<0) minX=0;
-      if(minY<0) minY=0;
-      if(minX+cropWidth>img.width) cropWidth=img.width-minX;
-      if(minY+cropHeight>img.height) cropHeight=img.height-minY;
+      // Compute rectangle top-left
+      let minX = centerX - cropWidth / 2;
+      let minY = centerY - cropHeight / 2;
 
-      const croppedCanvas=document.createElement('canvas');
-      croppedCanvas.width=cropWidth;
-      croppedCanvas.height=cropHeight;
-      const croppedCtx=croppedCanvas.getContext('2d');
+      // Shift rectangle if out of bounds
+      if(minX < 0) minX = 0;
+      if(minY < 0) minY = 0;
+      if(minX + cropWidth > img.width) minX = img.width - cropWidth;
+      if(minY + cropHeight > img.height) minY = img.height - cropHeight;
+
+      const croppedCanvas = document.createElement('canvas');
+      croppedCanvas.width = cropWidth;
+      croppedCanvas.height = cropHeight;
+      const croppedCtx = croppedCanvas.getContext('2d');
       croppedCtx.drawImage(canvas,minX,minY,cropWidth,cropHeight,0,0,cropWidth,cropHeight);
 
-      const identifier=index<identifiers.length?identifiers[index]:`face_${index+1}`;
-      return {id:identifier,imageData:croppedCanvas.toDataURL('image/jpeg')};
+      const identifier = index < identifiers.length ? identifiers[index] : `face_${index+1}`;
+      return { id: identifier, imageData: croppedCanvas.toDataURL('image/jpeg') };
     });
 
     displayResults();
@@ -201,18 +204,18 @@ function displayResults(){
   });
   document.querySelectorAll('.download-btn').forEach(btn=>{
     btn.addEventListener('click',()=>{
-      const id=btn.getAttribute('data-id');
+      const id = btn.getAttribute('data-id');
       downloadFace(id);
     });
   });
 }
 
 function downloadFace(id){
-  const face=detectedFaces.find(f=>f.id===id);
+  const face = detectedFaces.find(f=>f.id===id);
   if(!face) return;
-  const link=document.createElement('a');
-  link.href=face.imageData;
-  link.download=`${id}.jpg`;
+  const link = document.createElement('a');
+  link.href = face.imageData;
+  link.download = `${id}.jpg`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
