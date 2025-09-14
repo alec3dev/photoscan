@@ -95,6 +95,11 @@
       border-radius: 4px;
       margin-bottom: 20px;
     }
+    .ratio-display {
+      margin: 10px 0;
+      font-weight: bold;
+      color: #333;
+    }
   </style>
 </head>
 <body>
@@ -109,6 +114,7 @@
         <li>Click "Detect and Crop Faces" to process the image</li>
         <li>Download the cropped face images using the download buttons</li>
       </ol>
+      <div class="ratio-display">Current Crop Ratio: 1.5:2 (Width:Height)</div>
     </div>
 
     <div class="upload-section">
@@ -201,18 +207,40 @@
       try {
         const identifiers = identifiersTextarea.value.split('\n').map(id => id.trim()).filter(id => id !== '');
         const img = await faceapi.bufferToImage(imageFile);
-        const detections = await faceapi
-          .detectAllFaces(img, new faceapi.TinyFaceDetectorOptions())
-          .withFaceLandmarks();
-        if (detections.length === 0) {
+        
+        // Use multiple detection options to ensure we find all faces
+        const options1 = new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.3 });
+        const options2 = new faceapi.TinyFaceDetectorOptions({ inputSize: 256, scoreThreshold: 0.2 });
+        
+        // Run detection with different parameters
+        const detections1 = await faceapi.detectAllFaces(img, options1).withFaceLandmarks();
+        const detections2 = await faceapi.detectAllFaces(img, options2).withFaceLandmarks();
+        
+        // Combine results and remove duplicates
+        let allDetections = [...detections1, ...detections2];
+        const uniqueDetections = [];
+        const seenBoxes = new Set();
+        
+        for (const detection of allDetections) {
+          const box = detection.detection.box;
+          const key = `${Math.round(box.x)}_${Math.round(box.y)}_${Math.round(box.width)}_${Math.round(box.height)}`;
+          
+          if (!seenBoxes.has(key)) {
+            seenBoxes.add(key);
+            uniqueDetections.push(detection);
+          }
+        }
+        
+        if (uniqueDetections.length === 0) {
           statusDiv.textContent = 'No faces detected in the image.';
           statusDiv.className = 'status error';
           processButton.disabled = false;
           return;
         }
-        statusDiv.textContent = `Detected ${detections.length} faces. Processing...`;
+        
+        statusDiv.textContent = `Detected ${uniqueDetections.length} faces. Processing...`;
 
-        detectedFaces = detections.map((detection, index) => {
+        detectedFaces = uniqueDetections.map((detection, index) => {
           const landmarks = detection.landmarks;
           const box = detection.detection.box;
           
@@ -220,9 +248,9 @@
           const nose = landmarks.getNose();
           const noseCenter = centerPoint(nose);
           
-          // Calculate face dimensions based on 2:3 ratio
-          const faceHeight = box.height * 1.8; // Increase height for 2:3 ratio
-          const faceWidth = faceHeight * 2 / 3; // Calculate width based on 2:3 ratio
+          // Calculate face dimensions based on 1.5:2 ratio
+          const faceHeight = box.height * 1.8;
+          const faceWidth = faceHeight * 1.5 / 2; // 1.5:2 ratio
           
           // Calculate crop area centered on the nose
           let cropX = noseCenter.x - faceWidth / 2;
