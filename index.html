@@ -251,227 +251,93 @@
         <p>Face Scanner with Eye Alignment &copy; 2023 | Uses TensorFlow.js and Blazeface model</p>
     </footer>
 
-    <script>
-        // DOM elements
-        const video = document.getElementById('video');
-        const startCameraBtn = document.getElementById('startCamera');
-        const captureBtn = document.getElementById('capture');
-        const switchCameraBtn = document.getElementById('switchCamera');
-        const statusDiv = document.getElementById('status');
-        const facesContainer = document.getElementById('facesContainer');
-        
-        // Global variables
-        let stream = null;
-        let currentFacingMode = 'user'; // Start with front camera
-        let model = null;
-        
-        // Initialize TensorFlow.js model
-        async function loadFaceDetectionModel() {
-            statusDiv.textContent = "Loading face detection model...";
-            statusDiv.className = "status scanning";
-            
-            try {
-                model = await blazeface.load();
-                statusDiv.textContent = "Model loaded successfully!";
-                statusDiv.className = "status success";
-            } catch (error) {
-                statusDiv.textContent = "Failed to load face detection model.";
-                statusDiv.className = "status error";
-                console.error(error);
-            }
-        }
-        
-        // Start camera
-        async function startCamera() {
-            statusDiv.textContent = "Accessing camera...";
-            statusDiv.className = "status scanning";
-            
-            try {
-                const constraints = {
-                    video: {
-                        facingMode: currentFacingMode,
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
-                    }
-                };
-                
-                stream = await navigator.mediaDevices.getUserMedia(constraints);
-                video.srcObject = stream;
-                
-                startCameraBtn.disabled = true;
-                captureBtn.disabled = false;
-                switchCameraBtn.disabled = false;
-                
-                statusDiv.textContent = "Camera active. Position faces in the frame and click Capture.";
-                statusDiv.className = "status success";
-            } catch (error) {
-                statusDiv.textContent = "Error accessing camera: " + error.message;
-                statusDiv.className = "status error";
-                console.error("Camera error: ", error);
-            }
-        }
-        
-        // Switch between front and back cameras
-        async function switchCamera() {
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-            }
-            
-            currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
-            await startCamera();
-        }
-        
-        // Capture image and detect faces
-        async function captureImage() {
-            statusDiv.textContent = "Capturing image and detecting faces...";
-            statusDiv.className = "status scanning";
-            
-            // Create a canvas to capture the image
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
-            
-            // Draw video frame to canvas (correcting for mirror effect)
-            ctx.save();
-            ctx.scale(-1, 1);
-            ctx.drawImage(video, -canvas.width, 0, canvas.width, canvas.height);
-            ctx.restore();
-            
-            try {
-                // Detect faces
-                const predictions = await model.estimateFaces(canvas, false);
-                
-                if (predictions.length > 0) {
-                    statusDiv.textContent = `Detected ${predictions.length} face(s). Processing...`;
-                    
-                    // Clear previous faces
-                    facesContainer.innerHTML = '';
-                    
-                    // Process each face
-                    for (let i = 0; i < predictions.length; i++) {
-                        const face = predictions[i];
-                        await extractAndCorrectFace(canvas, face, i);
-                    }
-                    
-                    statusDiv.textContent = `Processed ${predictions.length} face(s). You can now rename and download them.`;
-                    statusDiv.className = "status success";
-                } else {
-                    statusDiv.textContent = "No faces detected. Try again.";
-                    statusDiv.className = "status error";
-                }
-            } catch (error) {
-                statusDiv.textContent = "Error detecting faces: " + error.message;
-                statusDiv.className = "status error";
-                console.error("Face detection error: ", error);
-            }
-        }
-        
-        // Extract and correct a single face with eye alignment
-        async function extractAndCorrectFace(sourceCanvas, face, index) {
-            return new Promise((resolve) => {
-                // Create a canvas for the extracted face
-                const faceCanvas = document.createElement('canvas');
-                const faceCtx = faceCanvas.getContext('2d');
-                
-                // Calculate face dimensions with some padding
-                const start = face.topLeft;
-                const end = face.bottomRight;
-                const width = end[0] - start[0];
-                const height = end[1] - start[1];
-                const padding = Math.min(width, height) * 0.2;
-                
-                // Set canvas size (square format for consistency)
-                const size = Math.max(width, height) + padding * 2;
-                faceCanvas.width = size;
-                faceCanvas.height = size;
-                
-                // Calculate the angle for rotation correction based on eyes
-                let rotationAngle = 0;
-                if (face.landmarks && face.landmarks.length >= 2) {
-                    const leftEye = face.landmarks[0];
-                    const rightEye = face.landmarks[1];
-                    
-                    // Calculate the angle between eyes
-                    const dy = rightEye[1] - leftEye[1];
-                    const dx = rightEye[0] - leftEye[0];
-                    rotationAngle = Math.atan2(dy, dx) * 180 / Math.PI;
-                    
-                    // For a perfectly straight face, eyes should be horizontal (angle = 0)
-                    // So we need to rotate by the negative of this angle
-                }
-                
-                // Clear the canvas
-                faceCtx.clearRect(0, 0, size, size);
-                
-                // Translate to center of canvas
-                faceCtx.translate(size / 2, size / 2);
-                
-                // Rotate by the negative angle to straighten the face
-                faceCtx.rotate(-rotationAngle * Math.PI / 180);
-                
-                // Translate back
-                faceCtx.translate(-size / 2, -size / 2);
-                
-                // Draw the face from the source canvas
-                faceCtx.drawImage(
-                    sourceCanvas,
-                    start[0] - padding, 
-                    start[1] - padding,
-                    width + padding * 2,
-                    height + padding * 2,
-                    0, 0, size, size
-                );
-                
-                // Create a data URL for the face image
-                const faceDataUrl = faceCanvas.toDataURL('image/jpeg');
-                
-                // Create a card for the face
-                const faceCard = document.createElement('div');
-                faceCard.className = 'face-card';
-                
-                // Create image element
-                const faceImg = document.createElement('img');
-                faceImg.className = 'face-image';
-                faceImg.src = faceDataUrl;
-                faceImg.alt = `Face ${index + 1}`;
-                
-                // Create input for naming
-                const nameInput = document.createElement('input');
-                nameInput.type = 'text';
-                nameInput.className = 'face-name';
-                nameInput.placeholder = `Person ${index + 1}`;
-                nameInput.value = `person_${index + 1}`;
-                
-                // Create download button
-                const downloadBtn = document.createElement('button');
-                downloadBtn.textContent = 'Download';
-                downloadBtn.onclick = function() {
-                    const link = document.createElement('a');
-                    link.download = `${nameInput.value || `person_${index + 1}`}.jpg`;
-                    link.href = faceDataUrl;
-                    link.click();
-                };
-                
-                // Add elements to the card
-                faceCard.appendChild(faceImg);
-                faceCard.appendChild(nameInput);
-                faceCard.appendChild(downloadBtn);
-                
-                // Add card to the container
-                facesContainer.appendChild(faceCard);
-                
-                resolve();
-            });
-        }
-        
-        // Event listeners
-        startCameraBtn.addEventListener('click', startCamera);
-        switchCameraBtn.addEventListener('click', switchCamera);
-        captureBtn.addEventListener('click', captureImage);
-        
-        // Initialize the app
-        loadFaceDetectionModel();
-    </script>
+<script>
+async function extractAndCorrectFace(sourceCanvas, face, index) {
+  return new Promise((resolve) => {
+    // Coordinates of the box
+    const start = face.topLeft;
+    const end = face.bottomRight;
+    const width = end[0] - start[0];
+    const height = end[1] - start[1];
+    const padding = Math.min(width, height) * 0.2;
+
+    // Make the crop square for consistency
+    const size = Math.max(width, height) + padding * 2;
+
+    // Compute rotation from the eyes
+    let rotationAngle = 0;
+    if (face.landmarks && face.landmarks.length >= 2) {
+      const leftEye = face.landmarks[0];
+      const rightEye = face.landmarks[1];
+      const dy = rightEye[1] - leftEye[1];
+      const dx = rightEye[0] - leftEye[0];
+      rotationAngle = Math.atan2(dy, dx); // in radians
+      // eyes perfectly horizontal => rotationAngle = 0
+    }
+
+    // Make a face canvas
+    const faceCanvas = document.createElement('canvas');
+    faceCanvas.width = size;
+    faceCanvas.height = size;
+    const faceCtx = faceCanvas.getContext('2d');
+
+    // Clear
+    faceCtx.clearRect(0, 0, size, size);
+
+    // Translate to the center for rotation
+    faceCtx.translate(size / 2, size / 2);
+    // Rotate by the negative angle to straighten
+    faceCtx.rotate(-rotationAngle);
+    // Translate back
+    faceCtx.translate(-size / 2, -size / 2);
+
+    // Draw the region from the source canvas into this rotated context
+    faceCtx.drawImage(
+      sourceCanvas,
+      start[0] - padding,
+      start[1] - padding,
+      width + padding * 2,
+      height + padding * 2,
+      0, 0, size, size
+    );
+
+    // Make an image element
+    const faceDataUrl = faceCanvas.toDataURL('image/jpeg');
+
+    // Card UI
+    const faceCard = document.createElement('div');
+    faceCard.className = 'face-card';
+
+    const faceImg = document.createElement('img');
+    faceImg.className = 'face-image';
+    faceImg.src = faceDataUrl;
+    faceImg.alt = `Face ${index + 1}`;
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.className = 'face-name';
+    nameInput.placeholder = `Person ${index + 1}`;
+    nameInput.value = `person_${index + 1}`;
+
+    const downloadBtn = document.createElement('button');
+    downloadBtn.textContent = 'Download';
+    downloadBtn.onclick = function () {
+      const link = document.createElement('a');
+      link.download = `${nameInput.value || `person_${index + 1}`}.jpg`;
+      link.href = faceDataUrl;
+      link.click();
+    };
+
+    faceCard.appendChild(faceImg);
+    faceCard.appendChild(nameInput);
+    faceCard.appendChild(downloadBtn);
+    facesContainer.appendChild(faceCard);
+
+    resolve();
+  });
+}
+</script>
+
 </body>
 </html>
+
