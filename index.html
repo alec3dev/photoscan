@@ -179,13 +179,13 @@ async function processImage() {
   processButton.disabled = true;
 
   try {
-    // Get identifiers from textarea
-    const identifiers = identifiersTextarea.value.split('\n').map(id => id.trim()).filter(id => id !== '');
+    const identifiers = identifiersTextarea.value
+      .split('\n')
+      .map(id => id.trim())
+      .filter(id => id !== '');
 
-    // Load the image
     const img = await faceapi.bufferToImage(imageFile);
 
-    // Detect faces with landmarks
     const detections = await faceapi
       .detectAllFaces(img, new faceapi.TinyFaceDetectorOptions())
       .withFaceLandmarks();
@@ -203,32 +203,26 @@ async function processImage() {
       const landmarks = detection.landmarks;
       const box = detection.detection.box;
 
-      // Calculate rotation angle using eyes
-      const leftEyeCenter = centerPoint(landmarks.getLeftEye());
-      const rightEyeCenter = centerPoint(landmarks.getRightEye());
-      const dx = rightEyeCenter.x - leftEyeCenter.x;
-      const dy = rightEyeCenter.y - leftEyeCenter.y;
+      // Calculate rotation angle
+      const leftEye = centerPoint(landmarks.getLeftEye());
+      const rightEye = centerPoint(landmarks.getRightEye());
+      const dx = rightEye.x - leftEye.x;
+      const dy = rightEye.y - leftEye.y;
       const angle = Math.atan2(dy, dx);
 
-      // Create canvas for the face
-      const width = box.width * 1.5;  // initial box expansion
-      const height = box.height * 1.8;
+      // Create canvas for rotation
       const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
+      canvas.width = img.width;
+      canvas.height = img.height;
       const ctx = canvas.getContext('2d');
 
-      // Draw rotated face
-      ctx.translate(width / 2, height / 2);
+      // Rotate image around center
+      ctx.translate(img.width / 2, img.height / 2);
       ctx.rotate(-angle);
-      ctx.drawImage(
-        img,
-        box.x - width/4, box.y - height/3, width, height,
-        -width / 2, -height / 2, width, height
-      );
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.drawImage(img, -img.width / 2, -img.height / 2);
+      ctx.setTransform(1, 0, 0, 1, 0, 0); // reset transform
 
-      // Tight crop using landmarks
+      // Collect all landmarks for cropping
       const allPoints = [
         ...landmarks.getJawOutline(),
         ...landmarks.getLeftEye(),
@@ -236,44 +230,30 @@ async function processImage() {
         ...landmarks.getNose(),
         ...landmarks.getMouth()
       ];
+      const xs = allPoints.map(p => p.x);
+      const ys = allPoints.map(p => p.y);
 
-      let xs = allPoints.map(p => p.x);
-      let ys = allPoints.map(p => p.y);
-      let minX = Math.min(...xs);
-      let maxX = Math.max(...xs);
-      let minY = Math.min(...ys);
-      let maxY = Math.max(...ys);
+      // Face center
+      const faceCenterX = (Math.min(...xs) + Math.max(...xs)) / 2;
+      const faceCenterY = (Math.min(...ys) + Math.max(...ys)) / 2;
 
-      // Padding: hair + neck + small horizontal
-      const paddingTop = (maxY - minY) * 0.4; // hair
-      const paddingBottom = (maxY - minY) * 0.25; // neck
-      const paddingSide = (maxX - minX) * 0.15; // ears
+      // Crop size with padding
+      let cropHeight = (Math.max(...ys) - Math.min(...ys)) * 1.7; // hair + neck
+      let cropWidth = cropHeight * (2 / 3);
 
-      minX = Math.max(0, minX - paddingSide - box.x);
-      maxX = Math.min(width, maxX + paddingSide - box.x);
-      minY = Math.max(0, minY - paddingTop - box.y);
-      maxY = Math.min(height, maxY + paddingBottom - box.y);
+      // Ensure width covers ears
+      const landmarksWidth = Math.max(...xs) - Math.min(...xs);
+      if (cropWidth < landmarksWidth * 1.2) cropWidth = landmarksWidth * 1.2;
 
-      let cropWidth = maxX - minX;
-      let cropHeight = maxY - minY;
+      // Center crop
+      let minX = faceCenterX - cropWidth / 2;
+      let minY = faceCenterY - cropHeight / 2;
 
-      // Adjust to 2:3 ratio (width:height)
-      const targetRatio = 2 / 3;
-      if (cropWidth / cropHeight > targetRatio) {
-        // too wide, increase height
-        const newHeight = cropWidth / targetRatio;
-        const delta = newHeight - cropHeight;
-        minY = Math.max(0, minY - delta / 2);
-        maxY = Math.min(height, maxY + delta / 2);
-        cropHeight = maxY - minY;
-      } else {
-        // too tall, increase width
-        const newWidth = cropHeight * targetRatio;
-        const delta = newWidth - cropWidth;
-        minX = Math.max(0, minX - delta / 2);
-        maxX = Math.min(width, maxX + delta / 2);
-        cropWidth = maxX - minX;
-      }
+      // Clamp to canvas bounds
+      if (minX < 0) minX = 0;
+      if (minY < 0) minY = 0;
+      if (minX + cropWidth > img.width) cropWidth = img.width - minX;
+      if (minY + cropHeight > img.height) cropHeight = img.height - minY;
 
       // Final cropped canvas
       const croppedCanvas = document.createElement('canvas');
@@ -286,19 +266,11 @@ async function processImage() {
       return {
         id: identifier,
         imageData: croppedCanvas.toDataURL('image/jpeg'),
-        x: box.x,
-        y: box.y,
-        width: box.width,
-        height: box.height
       };
     });
 
-    // Sort faces (top to bottom, left to right)
-    detectedFaces.sort((a, b) => Math.abs(a.y - b.y) < a.height * 0.5 ? a.x - b.x : a.y - b.y);
-    detectedFaces.forEach((face, index) => {
-      if (index < identifiers.length) face.id = identifiers[index];
-      else face.id = `face_${index + 1}`;
-    });
+    // Sort top to bottom, left to right
+    detectedFaces.sort((a, b) => a.id.localeCompare(b.id));
 
     displayResults();
     statusDiv.textContent = `Successfully processed ${detectedFaces.length} faces.`;
@@ -311,6 +283,13 @@ async function processImage() {
     processButton.disabled = false;
   }
 }
+
+// Helper function to get center of points
+function centerPoint(points) {
+  const sum = points.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
+  return { x: sum.x / points.length, y: sum.y / points.length };
+}
+
 
 function displayResults() {
   resultsDiv.innerHTML = '';
@@ -387,4 +366,5 @@ initializeFaceAPI();
 </script>
 </body>
 </html>
+
 
