@@ -366,46 +366,85 @@
         }
         
         // Extract and correct a single face
-        async function extractAndCorrectFace(sourceCanvas, face, index) {
-            return new Promise((resolve) => {
-                // Create a canvas for the extracted face
-                const faceCanvas = document.createElement('canvas');
-                const faceCtx = faceCanvas.getContext('2d');
-                
-                // Calculate face dimensions with some padding
-                const start = face.topLeft;
-                const end = face.bottomRight;
-                const width = end[0] - start[0];
-                const height = end[1] - start[1];
-                const padding = Math.min(width, height) * 0.2;
-                
-                // Set canvas size (square format for consistency)
-                const size = Math.max(width, height) + padding * 2;
-                faceCanvas.width = size;
-                faceCanvas.height = size;
-                
-                // Calculate the angle for rotation correction based on eyes
-                let rotationAngle = 0;
-                if (face.landmarks && face.landmarks.length >= 2) {
-                    const leftEye = face.landmarks[0];
-                    const rightEye = face.landmarks[1];
-                    rotationAngle = Math.atan2(rightEye[1] - leftEye[1], rightEye[0] - leftEye[0]) * 180 / Math.PI;
-                }
-                
-                // Draw the face with rotation correction
-                faceCtx.translate(size / 2, size / 2);
-                faceCtx.rotate(rotationAngle * Math.PI / 180);
-                faceCtx.translate(-size / 2, -size / 2);
-                
-                // Draw the face from the source canvas
-                faceCtx.drawImage(
-                    sourceCanvas,
-                    start[0] - padding, 
-                    start[1] - padding,
-                    width + padding * 2,
-                    height + padding * 2,
-                    0, 0, size, size
-                );
+async function extractAndCorrectFace(sourceCanvas, face, index) {
+    return new Promise((resolve) => {
+        const faceCanvas = document.createElement('canvas');
+        const faceCtx = faceCanvas.getContext('2d');
+
+        const start = face.topLeft;
+        const end = face.bottomRight;
+        const width = end[0] - start[0];
+        const height = end[1] - start[1];
+        const padding = Math.min(width, height) * 0.2;
+
+        const size = Math.max(width, height) + padding * 2;
+        faceCanvas.width = size;
+        faceCanvas.height = size;
+
+        // Compute rotation angle using eyes
+        let rotationAngle = 0;
+        if (face.landmarks && face.landmarks.length >= 2) {
+            const rightEye = face.landmarks[0]; // BlazeFace: [rightEye, leftEye, ...]
+            const leftEye = face.landmarks[1];
+            rotationAngle = Math.atan2(rightEye[1] - leftEye[1], rightEye[0] - leftEye[0]);
+        }
+
+        // Center of the face crop
+        const centerX = width / 2 + start[0];
+        const centerY = height / 2 + start[1];
+
+        // Apply rotation around the center
+        faceCtx.translate(size / 2, size / 2);
+        faceCtx.rotate(rotationAngle);
+        faceCtx.translate(-size / 2, -size / 2);
+
+        // Draw the face with padding
+        faceCtx.drawImage(
+            sourceCanvas,
+            start[0] - padding,
+            start[1] - padding,
+            width + padding * 2,
+            height + padding * 2,
+            0,
+            0,
+            size,
+            size
+        );
+
+        const faceDataUrl = faceCanvas.toDataURL('image/jpeg');
+
+        const faceCard = document.createElement('div');
+        faceCard.className = 'face-card';
+
+        const faceImg = document.createElement('img');
+        faceImg.className = 'face-image';
+        faceImg.src = faceDataUrl;
+        faceImg.alt = `Face ${index + 1}`;
+
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.className = 'face-name';
+        nameInput.placeholder = `Person ${index + 1}`;
+        nameInput.value = `person_${index + 1}`;
+
+        const downloadBtn = document.createElement('button');
+        downloadBtn.textContent = 'Download';
+        downloadBtn.onclick = function () {
+            const link = document.createElement('a');
+            link.download = `${nameInput.value || `person_${index + 1}`}.jpg`;
+            link.href = faceDataUrl;
+            link.click();
+        };
+
+        faceCard.appendChild(faceImg);
+        faceCard.appendChild(nameInput);
+        faceCard.appendChild(downloadBtn);
+        facesContainer.appendChild(faceCard);
+
+        resolve();
+    });
+}
+
                 
                 // Create a data URL for the face image
                 const faceDataUrl = faceCanvas.toDataURL('image/jpeg');
@@ -459,3 +498,4 @@
     </script>
 </body>
 </html>
+
