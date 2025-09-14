@@ -1,322 +1,231 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Face Detection and Cropping</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 1000px;
-      margin: 0 auto;
-      padding: 20px;
-      background-color: #f5f5f5;
-    }
-    .container {
-      background-color: white;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    }
-    h1 {
-      color: #333;
-      text-align: center;
-    }
-    .upload-section {
-      margin-bottom: 20px;
-      padding: 15px;
-      border: 2px dashed #ccc;
-      border-radius: 5px;
-      text-align: center;
-    }
-    .button {
-      background-color: #4CAF50;
-      color: white;
-      padding: 10px 15px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      margin: 5px;
-    }
-    .button:disabled {
-      background-color: #cccccc;
-      cursor: not-allowed;
-    }
-    .button:hover:not(:disabled) {
-      background-color: #45a049;
-    }
-    .results {
-      margin-top: 20px;
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-      gap: 10px;
-    }
-    .face-card {
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      padding: 10px;
-      text-align: center;
-      background-color: #f9f9f9;
-    }
-    .face-image {
-      max-width: 100%;
-      height: auto;
-      border-radius: 3px;
-    }
-    .status {
-      margin: 10px 0;
-      padding: 10px;
-      border-radius: 4px;
-    }
-    .loading { background-color: #e0f7fa; color: #006064; }
-    .success { background-color: #e8f5e9; color: #2e7d32; }
-    .error { background-color: #ffebee; color: #c62828; }
-    textarea {
-      width: 100%;
-      height: 100px;
-      margin: 10px 0;
-      padding: 10px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      resize: vertical;
-    }
-    .instructions {
-      background-color: #fff3e0;
-      padding: 15px;
-      border-radius: 4px;
-      margin-bottom: 20px;
-    }
-    .ratio-display {
-      margin: 10px 0;
-      font-weight: bold;
-      color: #333;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Face Detection & Cropping Tool</title>
+<style>
+body {
+  font-family: Arial, sans-serif;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 20px;
+  background-color: #f5f5f5;
+}
+.container {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+h1 { text-align:center; color:#333; }
+.upload-section {
+  margin-bottom:20px;
+  padding:15px;
+  border:2px dashed #ccc;
+  border-radius:5px;
+  text-align:center;
+}
+.button {
+  background-color:#4CAF50;
+  color:white;
+  padding:10px 15px;
+  border:none;
+  border-radius:4px;
+  cursor:pointer;
+  margin:5px;
+}
+.button:disabled { background-color:#cccccc; cursor:not-allowed; }
+.button:hover:not(:disabled) { background-color:#45a049; }
+.results {
+  margin-top:20px;
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px,1fr));
+  gap:10px;
+}
+.face-card {
+  border:1px solid #ddd;
+  border-radius:4px;
+  padding:10px;
+  text-align:center;
+  background-color:#f9f9f9;
+}
+.face-image { max-width:100%; height:auto; border-radius:3px; }
+.status { margin:10px 0; padding:10px; border-radius:4px; }
+.loading { background-color:#e0f7fa; color:#006064; }
+.success { background-color:#e8f5e9; color:#2e7d32; }
+.error { background-color:#ffebee; color:#c62828; }
+textarea { width:100%; height:100px; margin:10px 0; padding:10px; border:1px solid #ddd; border-radius:4px; resize:vertical; }
+.instructions { background-color:#fff3e0; padding:15px; border-radius:4px; margin-bottom:20px; }
+.ratio-display { margin:10px 0; font-weight:bold; color:#333; }
+input.rename-field { width: 80%; margin-top: 5px; padding:4px; border-radius:3px; border:1px solid #ccc; }
+</style>
 </head>
 <body>
-  <div class="container">
-    <h1>Face Detection and Cropping Tool</h1>
-    <div class="instructions">
-      <h3>Instructions:</h3>
-      <ol>
-        <li>Upload an image containing faces</li>
-        <li>Enter numbers/names (one per line) to assign to detected faces</li>
-        <li>Click "Detect and Crop Faces" to process the image</li>
-        <li>Download the cropped face images using the download buttons</li>
-      </ol>
-      <div class="ratio-display">Current Crop Ratio: 1.5:2 (Width:Height)</div>
-    </div>
+<div class="container">
+<h1>Face Detection & Cropping Tool</h1>
 
-    <div class="upload-section">
-      <h3>Upload Image</h3>
-      <input type="file" id="imageUpload" accept="image/*">
-      <div id="imagePreview"></div>
-    </div>
+<div class="instructions">
+<h3>Instructions:</h3>
+<ol>
+  <li>Upload an image containing faces</li>
+  <li>Click "Detect and Crop Faces" to process</li>
+  <li>Rename each face in the text fields if desired</li>
+  <li>Download individual faces or all as ZIP</li>
+</ol>
+<div class="ratio-display">Crop Ratio: 1.5:2 (Width:Height)</div>
+</div>
 
-    <div>
-      <h3>Enter Identifiers (one per line):</h3>
-      <textarea id="identifiers" placeholder="Enter numbers or names, one per line."></textarea>
-    </div>
+<div class="upload-section">
+  <h3>Upload Image</h3>
+  <input type="file" id="imageUpload" accept="image/*">
+  <div id="imagePreview"></div>
+</div>
 
-    <div>
-      <button id="processButton" class="button" disabled>Detect and Crop Faces</button>
-      <button id="downloadAllButton" class="button" disabled>Download All</button>
-    </div>
+<div>
+<button id="processButton" class="button" disabled>Detect and Crop Faces</button>
+<button id="downloadAllButton" class="button" disabled>Download All</button>
+</div>
 
-    <div id="status" class="status"></div>
+<div id="status" class="status"></div>
 
-    <h3>Detected Faces:</h3>
-    <div id="results" class="results"></div>
-  </div>
+<h3>Detected Faces:</h3>
+<div id="results" class="results"></div>
+</div>
 
-  <!-- Face API.js -->
-  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
-  <!-- JSZip -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+let imageFile=null, detectedFaces=[];
 
-  <script>
-    let imageFile = null;
-    let detectedFaces = [];
+const imageUpload=document.getElementById('imageUpload');
+const imagePreview=document.getElementById('imagePreview');
+const processButton=document.getElementById('processButton');
+const downloadAllButton=document.getElementById('downloadAllButton');
+const statusDiv=document.getElementById('status');
+const resultsDiv=document.getElementById('results');
 
-    const imageUpload = document.getElementById('imageUpload');
-    const imagePreview = document.getElementById('imagePreview');
-    const identifiersTextarea = document.getElementById('identifiers');
-    const processButton = document.getElementById('processButton');
-    const downloadAllButton = document.getElementById('downloadAllButton');
-    const statusDiv = document.getElementById('status');
-    const resultsDiv = document.getElementById('results');
+imageUpload.addEventListener('change', handleImageUpload);
+processButton.addEventListener('click', processImage);
+downloadAllButton.addEventListener('click', downloadAllFaces);
 
-    imageUpload.addEventListener('change', handleImageUpload);
-    processButton.addEventListener('click', processImage);
-    downloadAllButton.addEventListener('click', downloadAllFaces);
+async function initializeFaceAPI(){
+  statusDiv.textContent='Loading models...'; statusDiv.className='status loading';
+  try{
+    await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
+    await faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
+    statusDiv.textContent='Models loaded. Ready.';
+    statusDiv.className='status success';
+  }catch(e){ statusDiv.textContent=`Error: ${e.message}`; statusDiv.className='status error'; console.error(e); }
+}
 
-    async function initializeFaceAPI() {
-      statusDiv.textContent = 'Loading face detection models...';
-      statusDiv.className = 'status loading';
-      try {
-        await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
-        await faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
-        statusDiv.textContent = 'Models loaded successfully. Ready to detect faces.';
-        statusDiv.className = 'status success';
-      } catch (error) {
-        statusDiv.textContent = `Error loading models: ${error.message}`;
-        statusDiv.className = 'status error';
-        console.error(error);
-      }
-    }
+function handleImageUpload(event){
+  const file=event.target.files[0];
+  if(!file) return;
+  imageFile=file; resultsDiv.innerHTML=''; detectedFaces=[];
+  downloadAllButton.disabled=true;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    imagePreview.innerHTML=`<img src="${e.target.result}" style="max-width:100%; max-height:300px;">`;
+    processButton.disabled=false;
+  };
+  reader.readAsDataURL(file);
+}
 
-    function handleImageUpload(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-      imageFile = file;
-      resultsDiv.innerHTML = '';
-      detectedFaces = [];
-      downloadAllButton.disabled = true;
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        imagePreview.innerHTML = `<img src="${e.target.result}" style="max-width: 100%; max-height: 300px;">`;
-        processButton.disabled = false;
-      };
-      reader.readAsDataURL(file);
-    }
+function centerPoint(points){
+  const xs=points.map(p=>p.x), ys=points.map(p=>p.y);
+  return {x: xs.reduce((a,b)=>a+b,0)/points.length, y: ys.reduce((a,b)=>a+b,0)/points.length};
+}
 
-    function centerPoint(points) {
-      const xs = points.map(p => p.x);
-      const ys = points.map(p => p.y);
-      return { x: xs.reduce((a,b)=>a+b,0)/points.length, y: ys.reduce((a,b)=>a+b,0)/points.length };
-    }
+async function processImage(){
+  if(!imageFile) return;
+  statusDiv.textContent='Detecting faces...'; statusDiv.className='status loading';
+  processButton.disabled=true;
+  try{
+    const img=await faceapi.bufferToImage(imageFile);
+    const options=new faceapi.TinyFaceDetectorOptions({inputSize:512, scoreThreshold:0.3});
+    let detections=await faceapi.detectAllFaces(img, options).withFaceLandmarks();
+    if(!detections.length){ statusDiv.textContent='No faces detected.'; statusDiv.className='status error'; processButton.disabled=false; return; }
 
-    async function processImage() {
-      if (!imageFile) return;
-      statusDiv.textContent = 'Detecting faces...';
-      statusDiv.className = 'status loading';
-      processButton.disabled = true;
-      try {
-        const identifiers = identifiersTextarea.value.split('\n').map(id => id.trim()).filter(id => id !== '');
-        const img = await faceapi.bufferToImage(imageFile);
+    detectedFaces=detections.map((det,index)=>{
+      const lm=det.landmarks, box=det.detection.box;
+      const nose=centerPoint(lm.getNose()), leftEye=centerPoint(lm.getLeftEye()), rightEye=centerPoint(lm.getRightEye());
+      const angle=Math.atan2(rightEye.y-leftEye.y, rightEye.x-leftEye.x);
+      const cropRatioW=1.5, cropRatioH=2;
+      let cropH=box.height*1.8, cropW=cropH*cropRatioW/cropRatioH;
+      let cropX=nose.x-cropW/2, cropY=nose.y-cropH/2;
+      cropX=Math.max(0, Math.min(cropX, img.width-cropW));
+      cropY=Math.max(0, Math.min(cropY, img.height-cropH));
+      if(cropW<=0||cropH<=0) return null;
+      const canvas=document.createElement('canvas'); canvas.width=cropW; canvas.height=cropH;
+      const ctx=canvas.getContext('2d'); ctx.translate(cropW/2,cropH/2); ctx.rotate(-angle);
+      ctx.drawImage(img,cropX,cropY,cropW,cropH,-cropW/2,-cropH/2,cropW,cropH);
+      ctx.setTransform(1,0,0,1,0,0);
+      return {id:`face_${index+1}`, imageData:canvas.toDataURL('image/jpeg'), x:cropX, y:cropY};
+    }).filter(f=>f!==null);
 
-        const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.3 });
-        let detections = await faceapi.detectAllFaces(img, options).withFaceLandmarks();
+    // Sort top-left → bottom-right
+    detectedFaces.sort((a,b)=>{ const margin=20; if(Math.abs(a.y-b.y)<margin) return a.x-b.x; return a.y-b.y; });
 
-        if (detections.length === 0) {
-          statusDiv.textContent = 'No faces detected in the image.';
-          statusDiv.className = 'status error';
-          processButton.disabled = false;
-          return;
-        }
+    displayResults();
+    statusDiv.textContent=`Processed ${detectedFaces.length} faces.`; statusDiv.className='status success';
+    downloadAllButton.disabled=false;
+  }catch(e){ statusDiv.textContent=`Error: ${e.message}`; statusDiv.className='status error'; console.error(e);}
+  finally{ processButton.disabled=false; }
+}
 
-        detectedFaces = detections.map((det, index) => {
-          const landmarks = det.landmarks;
-          const box = det.detection.box;
-          const nose = landmarks.getNose();
-          const noseCenter = centerPoint(nose);
-          const leftEye = centerPoint(landmarks.getLeftEye());
-          const rightEye = centerPoint(landmarks.getRightEye());
-          const angle = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x);
+function displayResults(){
+  resultsDiv.innerHTML='';
+  detectedFaces.forEach((face,index)=>{
+    const card=document.createElement('div'); card.className='face-card';
+    card.innerHTML=`
+      <img src="${face.imageData}" class="face-image" alt="Face">
+      <input type="text" class="rename-field" value="${face.id}" data-index="${index}">
+      <button class="button download-btn" data-index="${index}">Download</button>
+    `;
+    resultsDiv.appendChild(card);
+  });
 
-          const cropRatioW = 1.5;
-          const cropRatioH = 2;
-          let cropHeight = box.height * 1.8;
-          let cropWidth = cropHeight * cropRatioW / cropRatioH;
+  document.querySelectorAll('.rename-field').forEach(input=>{
+    input.addEventListener('input',()=>{
+      const idx=parseInt(input.dataset.index); detectedFaces[idx].id=input.value.trim()||`face_${idx+1}`;
+    });
+  });
 
-          let cropX = noseCenter.x - cropWidth / 2;
-          let cropY = noseCenter.y - cropHeight / 2;
+  document.querySelectorAll('.download-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{ const idx=parseInt(btn.dataset.index); downloadFace(idx); });
+  });
+}
 
-          // Ensure crop rectangle inside image
-          cropX = Math.max(0, Math.min(cropX, img.width - cropWidth));
-          cropY = Math.max(0, Math.min(cropY, img.height - cropHeight));
+function downloadFace(index){
+  const face=detectedFaces[index]; if(!face) return;
+  const link=document.createElement('a'); link.href=face.imageData; link.download=`${face.id}.jpg`;
+  document.body.appendChild(link); link.click(); document.body.removeChild(link);
+}
 
-          if (cropWidth <= 0 || cropHeight <= 0) return null;
+async function downloadAllFaces(){
+  if(!detectedFaces.length) return;
+  const zip=new JSZip();
+  detectedFaces.forEach(face=>{
+    const data=face.imageData.split(',')[1];
+    zip.file(`${face.id}.jpg`, base64ToBlob(data,'image/jpeg'));
+  });
+  const content=await zip.generateAsync({type:'blob'});
+  const link=document.createElement('a'); link.href=URL.createObjectURL(content); link.download='faces.zip';
+  document.body.appendChild(link); link.click(); document.body.removeChild(link);
+}
 
-          const canvas = document.createElement('canvas');
-          canvas.width = cropWidth;
-          canvas.height = cropHeight;
-          const ctx = canvas.getContext('2d');
+function base64ToBlob(base64,mimeType){
+  const byteCharacters=atob(base64); const byteArrays=[];
+  for(let offset=0;offset<byteCharacters.length;offset+=512){
+    const slice=byteCharacters.slice(offset,offset+512);
+    const byteNumbers=new Array(slice.length); for(let i=0;i<slice.length;i++) byteNumbers[i]=slice.charCodeAt(i);
+    byteArrays.push(new Uint8Array(byteNumbers));
+  }
+  return new Blob(byteArrays,{type:mimeType});
+}
 
-          ctx.translate(cropWidth/2, cropHeight/2);
-          ctx.rotate(-angle);
-          ctx.drawImage(
-            img,
-            cropX, cropY, cropWidth, cropHeight,
-            -cropWidth/2, -cropHeight/2, cropWidth, cropHeight
-          );
-          ctx.setTransform(1,0,0,1,0,0);
-
-          const identifier = index < identifiers.length ? identifiers[index] : `face_${index+1}`;
-          return { id: identifier, imageData: canvas.toDataURL('image/jpeg') };
-        }).filter(f => f !== null);
-
-        displayResults();
-        statusDiv.textContent = `Successfully processed ${detectedFaces.length} faces.`;
-        statusDiv.className = 'status success';
-        downloadAllButton.disabled = false;
-      } catch (error) {
-        statusDiv.textContent = `Error processing image: ${error.message}`;
-        statusDiv.className = 'status error';
-        console.error(error);
-      } finally {
-        processButton.disabled = false;
-      }
-    }
-
-    function displayResults() {
-      resultsDiv.innerHTML = '';
-      detectedFaces.forEach(face => {
-        const card = document.createElement('div');
-        card.className = 'face-card';
-        card.innerHTML = `
-          <img src="${face.imageData}" class="face-image" alt="Cropped face">
-          <p>${face.id}</p>
-          <button class="button download-btn" data-id="${face.id}">Download</button>
-        `;
-        resultsDiv.appendChild(card);
-      });
-
-      document.querySelectorAll('.download-btn').forEach(btn => {
-        btn.addEventListener('click', () => downloadFace(btn.dataset.id));
-      });
-    }
-
-    function downloadFace(id) {
-      const face = detectedFaces.find(f => f.id === id);
-      if (!face) return;
-      const link = document.createElement('a');
-      link.href = face.imageData;
-      link.download = `${id}.jpg`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-
-    async function downloadAllFaces() {
-      if (!detectedFaces.length) return;
-      const zip = new JSZip();
-      detectedFaces.forEach(face => {
-        const data = face.imageData.split(',')[1];
-        zip.file(`${face.id}.jpg`, base64ToBlob(data, 'image/jpeg'));
-      });
-      const content = await zip.generateAsync({type:'blob'});
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(content);
-      link.download = 'cropped_faces.zip';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    }
-
-    function base64ToBlob(base64, mimeType) {
-      const byteCharacters = atob(base64);
-      const byteArrays = [];
-      for (let offset = 0; offset < byteCharacters.length; offset += 512) {
-        const slice = byteCharacters.slice(offset, offset + 512);
-        const byteNumbers = new Array(slice.length);
-        for (let i = 0; i < slice.length; i++) byteNumbers[i] = slice.charCodeAt(i);
-        byteArrays.push(new Uint8Array(byteNumbers));
-      }
-      return new Blob(byteArrays, {type: mimeType});
-    }
-
-    initializeFaceAPI();
-  </script>
+initializeFaceAPI();
+</script>
 </body>
 </html>
