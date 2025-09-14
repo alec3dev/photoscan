@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Face Scanner App</title>
+    <title>Multi-Face Scanner</title>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface"></script>
     <style>
@@ -15,7 +15,7 @@
         }
         
         body {
-            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
             color: white;
             min-height: 100vh;
             padding: 20px;
@@ -25,7 +25,7 @@
         }
         
         .container {
-            max-width: 1000px;
+            max-width: 1200px;
             width: 100%;
             background: rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(10px);
@@ -48,7 +48,7 @@
         .app-description {
             font-size: 1.1rem;
             opacity: 0.9;
-            max-width: 600px;
+            max-width: 800px;
             margin: 0 auto;
         }
         
@@ -61,9 +61,9 @@
         
         #video {
             width: 100%;
-            max-width: 600px;
+            max-width: 640px;
             border-radius: 10px;
-            transform: scaleX(-1); /* Mirror the video for better UX */
+            transform: scaleX(-1);
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
         }
         
@@ -104,37 +104,40 @@
             box-shadow: none;
         }
         
-        .preview-section {
+        .faces-container {
             display: flex;
-            flex-direction: column;
-            align-items: center;
-            margin-bottom: 30px;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            margin: 20px 0;
         }
         
-        #canvas {
-            max-width: 100%;
+        .face-card {
+            background: rgba(255, 255, 255, 0.15);
             border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-        }
-        
-        .rename-section {
+            padding: 15px;
+            width: 200px;
             display: flex;
             flex-direction: column;
             align-items: center;
-            margin-top: 20px;
-            width: 100%;
-            max-width: 600px;
         }
         
-        input {
-            padding: 12px 20px;
-            border: none;
-            border-radius: 50px;
+        .face-image {
+            width: 150px;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            background: #000;
+        }
+        
+        .face-name {
             width: 100%;
-            margin-bottom: 15px;
-            font-size: 1rem;
+            padding: 8px;
+            border: none;
+            border-radius: 5px;
+            margin-bottom: 10px;
             text-align: center;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
         }
         
         .status {
@@ -162,7 +165,7 @@
             padding: 20px;
             border-radius: 10px;
             margin-top: 30px;
-            max-width: 600px;
+            max-width: 800px;
         }
         
         .instructions h2 {
@@ -200,14 +203,19 @@
                 width: 100%;
                 max-width: 300px;
             }
+            
+            .face-card {
+                width: 100%;
+                max-width: 250px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>Face Scanner App</h1>
-            <p class="app-description">Use your phone's camera to scan photos, detect and align faces, then download the corrected image.</p>
+            <h1>Multi-Face Scanner</h1>
+            <p class="app-description">Scan a photo with multiple faces, extract each face, correct rotation, rename, and download as individual JPG files.</p>
         </header>
         
         <div class="camera-section">
@@ -221,52 +229,42 @@
         
         <div class="status" id="status">Camera not started. Click "Start Camera" to begin.</div>
         
-        <div class="preview-section">
-            <canvas id="canvas"></canvas>
-            <div class="rename-section">
-                <input type="text" id="fileName" placeholder="Enter file name (e.g., my_photo)" value="scanned_face">
-                <button id="download" disabled>Download Image</button>
-            </div>
+        <h2>Detected Faces</h2>
+        <div class="faces-container" id="facesContainer">
+            <!-- Faces will be added here dynamically -->
         </div>
         
         <div class="instructions">
             <h2>How to Use</h2>
             <ol>
                 <li>Click "Start Camera" to begin using your camera</li>
-                <li>Position the face you want to scan in the camera view</li>
+                <li>Position the photo with multiple faces in the camera view</li>
                 <li>Click "Capture Photo" to take a picture</li>
-                <li>The app will automatically detect and align the face</li>
-                <li>Rename the file if desired</li>
-                <li>Click "Download Image" to save the processed photo</li>
+                <li>The app will detect all faces, extract them, and correct rotation</li>
+                <li>Rename each face using the input fields</li>
+                <li>Click "Download" under each face to save them individually</li>
             </ol>
         </div>
     </div>
     
     <footer>
-        <p>Face Scanner App &copy; 2023 | Uses TensorFlow.js and Blazeface model</p>
+        <p>Multi-Face Scanner App &copy; 2023 | Uses TensorFlow.js and Blazeface model</p>
     </footer>
 
     <script>
         // DOM elements
         const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
         const startCameraBtn = document.getElementById('startCamera');
         const captureBtn = document.getElementById('capture');
         const switchCameraBtn = document.getElementById('switchCamera');
-        const downloadBtn = document.getElementById('download');
-        const fileNameInput = document.getElementById('fileName');
         const statusDiv = document.getElementById('status');
+        const facesContainer = document.getElementById('facesContainer');
         
         // Global variables
         let stream = null;
-        let currentFacingMode = 'environment'; // Start with back camera
+        let currentFacingMode = 'environment';
         let model = null;
         let capturedImageData = null;
-        const ctx = canvas.getContext('2d');
-        
-        // Set canvas size
-        canvas.width = 600;
-        canvas.height = 400;
         
         // Initialize TensorFlow.js model
         async function loadFaceDetectionModel() {
@@ -305,7 +303,7 @@
                 captureBtn.disabled = false;
                 switchCameraBtn.disabled = false;
                 
-                statusDiv.textContent = "Camera active. Position a face in the frame and click Capture.";
+                statusDiv.textContent = "Camera active. Position faces in the frame and click Capture.";
                 statusDiv.className = "status success";
             } catch (error) {
                 statusDiv.textContent = "Error accessing camera: " + error.message;
@@ -326,8 +324,14 @@
         
         // Capture image and detect faces
         async function captureImage() {
-            statusDiv.textContent = "Capturing image...";
+            statusDiv.textContent = "Capturing image and detecting faces...";
             statusDiv.className = "status scanning";
+            
+            // Create a canvas to capture the image
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
             
             // Draw video frame to canvas
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -337,18 +341,19 @@
                 const predictions = await model.estimateFaces(canvas, false);
                 
                 if (predictions.length > 0) {
-                    statusDiv.textContent = `Face detected! Adjusting rotation...`;
+                    statusDiv.textContent = `Detected ${predictions.length} face(s). Processing...`;
                     
-                    // For simplicity, we'll just draw the bounding box and landmarks
-                    // In a real app, you would calculate rotation and transform the image
-                    drawFaceDetectionResults(predictions);
+                    // Clear previous faces
+                    facesContainer.innerHTML = '';
                     
-                    // Simulate rotation correction (in a real app, you'd use the face landmarks)
-                    setTimeout(() => {
-                        statusDiv.textContent = "Face rotation corrected. You can now download the image.";
-                        statusDiv.className = "status success";
-                        downloadBtn.disabled = false;
-                    }, 1000);
+                    // Process each face
+                    for (let i = 0; i < predictions.length; i++) {
+                        const face = predictions[i];
+                        await extractAndCorrectFace(canvas, face, i);
+                    }
+                    
+                    statusDiv.textContent = `Processed ${predictions.length} face(s). You can now rename and download them.`;
+                    statusDiv.className = "status success";
                 } else {
                     statusDiv.textContent = "No faces detected. Try again.";
                     statusDiv.className = "status error";
@@ -360,57 +365,94 @@
             }
         }
         
-        // Draw face detection results on canvas
-        function drawFaceDetectionResults(predictions) {
-            // Clear canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            
-            // Draw bounding box and landmarks for each face
-            predictions.forEach(prediction => {
-                // Draw bounding box
-                const start = prediction.topLeft;
-                const end = prediction.bottomRight;
-                const size = [end[0] - start[0], end[1] - start[1]];
+        // Extract and correct a single face
+        async function extractAndCorrectFace(sourceCanvas, face, index) {
+            return new Promise((resolve) => {
+                // Create a canvas for the extracted face
+                const faceCanvas = document.createElement('canvas');
+                const faceCtx = faceCanvas.getContext('2d');
                 
-                ctx.strokeStyle = '#32CD32';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(start[0], start[1], size[0], size[1]);
+                // Calculate face dimensions with some padding
+                const start = face.topLeft;
+                const end = face.bottomRight;
+                const width = end[0] - start[0];
+                const height = end[1] - start[1];
+                const padding = Math.min(width, height) * 0.2;
                 
-                // Draw landmarks
-                ctx.fillStyle = '#FF6347';
-                prediction.landmarks.forEach(landmark => {
-                    ctx.beginPath();
-                    ctx.arc(landmark[0], landmark[1], 4, 0, 2 * Math.PI);
-                    ctx.fill();
-                });
+                // Set canvas size (square format for consistency)
+                const size = Math.max(width, height) + padding * 2;
+                faceCanvas.width = size;
+                faceCanvas.height = size;
                 
-                // Add text label
-                ctx.fillStyle = '#32CD32';
-                ctx.font = '16px Arial';
-                ctx.fillText('Face Detected', start[0], start[1] - 5);
+                // Calculate the angle for rotation correction based on eyes
+                let rotationAngle = 0;
+                if (face.landmarks && face.landmarks.length >= 2) {
+                    const leftEye = face.landmarks[0];
+                    const rightEye = face.landmarks[1];
+                    rotationAngle = Math.atan2(rightEye[1] - leftEye[1], rightEye[0] - leftEye[0]) * 180 / Math.PI;
+                }
+                
+                // Draw the face with rotation correction
+                faceCtx.translate(size / 2, size / 2);
+                faceCtx.rotate(rotationAngle * Math.PI / 180);
+                faceCtx.translate(-size / 2, -size / 2);
+                
+                // Draw the face from the source canvas
+                faceCtx.drawImage(
+                    sourceCanvas,
+                    start[0] - padding, 
+                    start[1] - padding,
+                    width + padding * 2,
+                    height + padding * 2,
+                    0, 0, size, size
+                );
+                
+                // Create a data URL for the face image
+                const faceDataUrl = faceCanvas.toDataURL('image/jpeg');
+                
+                // Create a card for the face
+                const faceCard = document.createElement('div');
+                faceCard.className = 'face-card';
+                
+                // Create image element
+                const faceImg = document.createElement('img');
+                faceImg.className = 'face-image';
+                faceImg.src = faceDataUrl;
+                faceImg.alt = `Face ${index + 1}`;
+                
+                // Create input for naming
+                const nameInput = document.createElement('input');
+                nameInput.type = 'text';
+                nameInput.className = 'face-name';
+                nameInput.placeholder = `Person ${index + 1}`;
+                nameInput.value = `person_${index + 1}`;
+                
+                // Create download button
+                const downloadBtn = document.createElement('button');
+                downloadBtn.textContent = 'Download';
+                downloadBtn.onclick = function() {
+                    const link = document.createElement('a');
+                    link.download = `${nameInput.value || `person_${index + 1}`}.jpg`;
+                    link.href = faceDataUrl;
+                    link.click();
+                };
+                
+                // Add elements to the card
+                faceCard.appendChild(faceImg);
+                faceCard.appendChild(nameInput);
+                faceCard.appendChild(downloadBtn);
+                
+                // Add card to the container
+                facesContainer.appendChild(faceCard);
+                
+                resolve();
             });
-        }
-        
-        // Download the processed image
-        function downloadImage() {
-            if (!canvas.width) return;
-            
-            const fileName = fileNameInput.value || 'scanned_face';
-            const link = document.createElement('a');
-            link.download = `${fileName}.jpg`;
-            link.href = canvas.toDataURL('image/jpeg', 0.9);
-            link.click();
-            
-            statusDiv.textContent = "Image downloaded successfully!";
-            statusDiv.className = "status success";
         }
         
         // Event listeners
         startCameraBtn.addEventListener('click', startCamera);
         switchCameraBtn.addEventListener('click', switchCamera);
         captureBtn.addEventListener('click', captureImage);
-        downloadBtn.addEventListener('click', downloadImage);
         
         // Initialize the app
         loadFaceDetectionModel();
