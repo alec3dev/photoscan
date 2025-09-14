@@ -1,92 +1,38 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Face Detection and Cropping</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 1000px;
-      margin: 0 auto;
-      padding: 20px;
-      background-color: #f5f5f5;
-    }
-    .container {
-      background-color: white;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    }
-    h1 { color: #333; text-align: center; }
-    .upload-section {
-      margin-bottom: 20px;
-      padding: 15px;
-      border: 2px dashed #ccc;
-      border-radius: 5px;
-      text-align: center;
-    }
-    .button {
-      background-color: #4CAF50;
-      color: white;
-      padding: 10px 15px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      margin: 5px;
-    }
-    .button:disabled { background-color: #cccccc; cursor: not-allowed; }
-    .button:hover:not(:disabled) { background-color: #45a049; }
-    .results {
-      margin-top: 20px;
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-      gap: 10px;
-    }
-    .face-card {
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      padding: 10px;
-      text-align: center;
-      background-color: #f9f9f9;
-    }
-    .face-image { max-width: 100%; height: auto; border-radius: 3px; }
-    .status {
-      margin: 10px 0;
-      padding: 10px;
-      border-radius: 4px;
-    }
-    .loading { background-color: #e0f7fa; color: #006064; }
-    .success { background-color: #e8f5e9; color: #2e7d32; }
-    .error { background-color: #ffebee; color: #c62828; }
-    textarea {
-      width: 100%;
-      height: 100px;
-      margin: 10px 0;
-      padding: 10px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      resize: vertical;
-    }
-    .instructions {
-      background-color: #fff3e0;
-      padding: 15px;
-      border-radius: 4px;
-      margin-bottom: 20px;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Face Detection Nose-Centered 2:3 Crop YES</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 1000px; margin: 0 auto; padding: 20px; background-color: #f5f5f5; }
+  .container { background-color: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+  h1 { color: #333; text-align: center; }
+  .upload-section { margin-bottom: 20px; padding: 15px; border: 2px dashed #ccc; border-radius: 5px; text-align: center; }
+  .button { background-color: #4CAF50; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
+  .button:disabled { background-color: #cccccc; cursor: not-allowed; }
+  .results { margin-top: 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap: 10px; }
+  .face-card { border: 1px solid #ddd; border-radius: 4px; padding: 10px; text-align: center; background-color: #f9f9f9; }
+  .face-image { max-width: 100%; height: auto; border-radius: 3px; }
+  .status { margin: 10px 0; padding: 10px; border-radius: 4px; }
+  .loading { background-color: #e0f7fa; color: #006064; }
+  .success { background-color: #e8f5e9; color: #2e7d32; }
+  .error { background-color: #ffebee; color: #c62828; }
+  textarea { width: 100%; height: 100px; margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 4px; resize: vertical; }
+  .instructions { background-color: #fff3e0; padding: 15px; border-radius: 4px; margin-bottom: 20px; }
+</style>
 </head>
 <body>
 <div class="container">
-  <h1>Face Detection and Cropping Tool</h1>
+  <h1>Face Detection Nose-Centered 2:3 Crop</h1>
 
   <div class="instructions">
     <h3>Instructions:</h3>
     <ol>
-      <li>Upload an image containing faces</li>
-      <li>Enter numbers/names (one per line) to assign to detected faces</li>
-      <li>Click "Detect and Crop Faces" to process the image</li>
-      <li>Download the cropped face images using the download buttons</li>
+      <li>Upload an image containing faces.</li>
+      <li>Enter names/identifiers for faces (one per line).</li>
+      <li>Click "Detect and Crop Faces".</li>
+      <li>Download cropped face images.</li>
     </ol>
   </div>
 
@@ -97,8 +43,8 @@
   </div>
 
   <div>
-    <h3>Enter Identifiers (one per line):</h3>
-    <textarea id="identifiers" placeholder="Enter numbers or names, one per line. These will be used as filenames for the cropped faces."></textarea>
+    <h3>Identifiers (one per line):</h3>
+    <textarea id="identifiers" placeholder="Enter names or numbers"></textarea>
   </div>
 
   <div>
@@ -112,9 +58,7 @@
   <div id="results" class="results"></div>
 </div>
 
-<!-- Face API.js -->
 <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
-<!-- JSZip -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
 <script>
@@ -139,7 +83,7 @@ async function initializeFaceAPI() {
   try {
     await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
     await faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
-    statusDiv.textContent = 'Models loaded successfully. Ready to detect faces.';
+    statusDiv.textContent = 'Models loaded successfully.';
     statusDiv.className = 'status success';
   } catch (error) {
     statusDiv.textContent = `Error loading models: ${error.message}`;
@@ -156,207 +100,158 @@ function handleImageUpload(event) {
   detectedFaces = [];
   downloadAllButton.disabled = true;
   const reader = new FileReader();
-  reader.onload = function(e) {
-    imagePreview.innerHTML = `<img src="${e.target.result}" style="max-width: 100%; max-height: 300px;">`;
+  reader.onload = e => {
+    imagePreview.innerHTML = `<img src="${e.target.result}" style="max-width:100%; max-height:300px;">`;
     processButton.disabled = false;
   };
   reader.readAsDataURL(file);
 }
 
-function centerPoint(points) {
-  const xs = points.map(p => p.x);
-  const ys = points.map(p => p.y);
-  return {
-    x: xs.reduce((a,b)=>a+b,0)/points.length,
-    y: ys.reduce((a,b)=>a+b,0)/points.length
-  };
+// Helper to get center point
+function centerPoint(points){
+  const sum = points.reduce((acc,p)=>({x:acc.x+p.x,y:acc.y+p.y}), {x:0,y:0});
+  return {x: sum.x/points.length, y: sum.y/points.length};
 }
 
 async function processImage() {
-  if (!imageFile) return;
+  if(!imageFile) return;
   statusDiv.textContent = 'Detecting faces...';
   statusDiv.className = 'status loading';
   processButton.disabled = true;
 
   try {
-    const identifiers = identifiersTextarea.value
-      .split('\n')
-      .map(id => id.trim())
-      .filter(id => id !== '');
-
+    const identifiers = identifiersTextarea.value.split('\n').map(id=>id.trim()).filter(id=>id!=='');
     const img = await faceapi.bufferToImage(imageFile);
-
-    const detections = await faceapi
-      .detectAllFaces(img, new faceapi.TinyFaceDetectorOptions())
-      .withFaceLandmarks();
-
-    if (detections.length === 0) {
-      statusDiv.textContent = 'No faces detected in the image.';
-      statusDiv.className = 'status error';
-      processButton.disabled = false;
+    const detections = await faceapi.detectAllFaces(img,new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks();
+    if(detections.length===0){
+      statusDiv.textContent='No faces detected.';
+      statusDiv.className='status error';
+      processButton.disabled=false;
       return;
     }
+    statusDiv.textContent=`Detected ${detections.length} faces. Processing...`;
 
-    statusDiv.textContent = `Detected ${detections.length} faces. Processing...`;
+    detectedFaces = detections.map((detection,index)=>{
+      const landmarks=detection.landmarks;
+      const box=detection.detection.box;
 
-    detectedFaces = detections.map((detection, index) => {
-      const landmarks = detection.landmarks;
-      const box = detection.detection.box;
+      // Rotation based on eyes
+      const leftEye=centerPoint(landmarks.getLeftEye());
+      const rightEye=centerPoint(landmarks.getRightEye());
+      const angle=Math.atan2(rightEye.y-leftEye.y,rightEye.x-leftEye.x);
 
-      // Calculate rotation angle
-      const leftEye = centerPoint(landmarks.getLeftEye());
-      const rightEye = centerPoint(landmarks.getRightEye());
-      const dx = rightEye.x - leftEye.x;
-      const dy = rightEye.y - leftEye.y;
-      const angle = Math.atan2(dy, dx);
-
-      // Create canvas for rotation
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-
-      // Rotate image around center
-      ctx.translate(img.width / 2, img.height / 2);
+      const canvas=document.createElement('canvas');
+      canvas.width=img.width;
+      canvas.height=img.height;
+      const ctx=canvas.getContext('2d');
+      ctx.translate(img.width/2,img.height/2);
       ctx.rotate(-angle);
-      ctx.drawImage(img, -img.width / 2, -img.height / 2);
-      ctx.setTransform(1, 0, 0, 1, 0, 0); // reset transform
+      ctx.drawImage(img,-img.width/2,-img.height/2);
+      ctx.setTransform(1,0,0,1,0,0);
 
-      // Collect all landmarks for cropping
-      const allPoints = [
-        ...landmarks.getJawOutline(),
-        ...landmarks.getLeftEye(),
-        ...landmarks.getRightEye(),
-        ...landmarks.getNose(),
-        ...landmarks.getMouth()
-      ];
-      const xs = allPoints.map(p => p.x);
-      const ys = allPoints.map(p => p.y);
+      // Nose-centered crop
+      const nose=centerPoint(landmarks.getNose());
+      const centerX=nose.x;
+      const centerY=nose.y;
 
-      // Face center
-      const faceCenterX = (Math.min(...xs) + Math.max(...xs)) / 2;
-      const faceCenterY = (Math.min(...ys) + Math.max(...ys)) / 2;
+      // Crop size with hair+neck
+      let cropHeight=(Math.max(...landmarks.getJawOutline().map(p=>p.y))-Math.min(...landmarks.getLeftEye().map(p=>p.y)))*1.7;
+      let cropWidth=cropHeight*(2/3);
 
-      // Crop size with padding
-      let cropHeight = (Math.max(...ys) - Math.min(...ys)) * 1.7; // hair + neck
-      let cropWidth = cropHeight * (2 / 3);
+      const jawWidth=Math.max(...landmarks.getJawOutline().map(p=>p.x))-Math.min(...landmarks.getJawOutline().map(p=>p.x));
+      if(cropWidth<jawWidth*1.2) cropWidth=jawWidth*1.2;
 
-      // Ensure width covers ears
-      const landmarksWidth = Math.max(...xs) - Math.min(...xs);
-      if (cropWidth < landmarksWidth * 1.2) cropWidth = landmarksWidth * 1.2;
+      let minX=centerX-cropWidth/2;
+      let minY=centerY-cropHeight/2;
+      if(minX<0) minX=0;
+      if(minY<0) minY=0;
+      if(minX+cropWidth>img.width) cropWidth=img.width-minX;
+      if(minY+cropHeight>img.height) cropHeight=img.height-minY;
 
-      // Center crop
-      let minX = faceCenterX - cropWidth / 2;
-      let minY = faceCenterY - cropHeight / 2;
+      const croppedCanvas=document.createElement('canvas');
+      croppedCanvas.width=cropWidth;
+      croppedCanvas.height=cropHeight;
+      const croppedCtx=croppedCanvas.getContext('2d');
+      croppedCtx.drawImage(canvas,minX,minY,cropWidth,cropHeight,0,0,cropWidth,cropHeight);
 
-      // Clamp to canvas bounds
-      if (minX < 0) minX = 0;
-      if (minY < 0) minY = 0;
-      if (minX + cropWidth > img.width) cropWidth = img.width - minX;
-      if (minY + cropHeight > img.height) cropHeight = img.height - minY;
-
-      // Final cropped canvas
-      const croppedCanvas = document.createElement('canvas');
-      croppedCanvas.width = cropWidth;
-      croppedCanvas.height = cropHeight;
-      const croppedCtx = croppedCanvas.getContext('2d');
-      croppedCtx.drawImage(canvas, minX, minY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
-
-      const identifier = index < identifiers.length ? identifiers[index] : `face_${index + 1}`;
-      return {
-        id: identifier,
-        imageData: croppedCanvas.toDataURL('image/jpeg'),
-      };
+      const identifier=index<identifiers.length?identifiers[index]:`face_${index+1}`;
+      return {id:identifier,imageData:croppedCanvas.toDataURL('image/jpeg')};
     });
 
-    // Sort top to bottom, left to right
-    detectedFaces.sort((a, b) => a.id.localeCompare(b.id));
-
     displayResults();
-    statusDiv.textContent = `Successfully processed ${detectedFaces.length} faces.`;
-    statusDiv.className = 'status success';
-    downloadAllButton.disabled = false;
-  } catch (error) {
-    statusDiv.textContent = `Error processing image: ${error.message}`;
-    statusDiv.className = 'status error';
+    statusDiv.textContent=`Successfully processed ${detectedFaces.length} faces.`;
+    statusDiv.className='status success';
+    downloadAllButton.disabled=false;
+
+  } catch(error){
+    statusDiv.textContent=`Error: ${error.message}`;
+    statusDiv.className='status error';
     console.error(error);
-    processButton.disabled = false;
+    processButton.disabled=false;
   }
 }
 
-// Helper function to get center of points
-function centerPoint(points) {
-  const sum = points.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 });
-  return { x: sum.x / points.length, y: sum.y / points.length };
-}
-
-
-function displayResults() {
-  resultsDiv.innerHTML = '';
-  detectedFaces.forEach(face => {
-    const card = document.createElement('div');
-    card.className = 'face-card';
-    card.innerHTML = `
-      <img src="${face.imageData}" class="face-image" alt="Cropped face">
-      <p>${face.id}</p>
-      <button class="button download-btn" data-id="${face.id}">Download</button>
-    `;
+function displayResults(){
+  resultsDiv.innerHTML='';
+  detectedFaces.forEach(face=>{
+    const card=document.createElement('div');
+    card.className='face-card';
+    card.innerHTML=`<img src="${face.imageData}" class="face-image"><p>${face.id}</p><button class="button download-btn" data-id="${face.id}">Download</button>`;
     resultsDiv.appendChild(card);
   });
-  document.querySelectorAll('.download-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const id = btn.getAttribute('data-id');
+  document.querySelectorAll('.download-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      const id=btn.getAttribute('data-id');
       downloadFace(id);
     });
   });
 }
 
-function downloadFace(id) {
-  const face = detectedFaces.find(f => f.id===id);
+function downloadFace(id){
+  const face=detectedFaces.find(f=>f.id===id);
   if(!face) return;
-  const link = document.createElement('a');
-  link.href = face.imageData;
-  link.download = `${id}.jpg`;
+  const link=document.createElement('a');
+  link.href=face.imageData;
+  link.download=`${id}.jpg`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
 }
 
-async function downloadAllFaces() {
+async function downloadAllFaces(){
   if(detectedFaces.length===0) return;
-  statusDiv.textContent = 'Preparing download...';
-  statusDiv.className = 'status loading';
-  try {
-    const zip = new JSZip();
+  statusDiv.textContent='Preparing download...';
+  statusDiv.className='status loading';
+  try{
+    const zip=new JSZip();
     detectedFaces.forEach(face=>{
-      const data = face.imageData.split(',')[1];
-      const blob = base64ToBlob(data,'image/jpeg');
-      zip.file(`${face.id}.jpg`, blob);
+      const data=face.imageData.split(',')[1];
+      const blob=base64ToBlob(data,'image/jpeg');
+      zip.file(`${face.id}.jpg`,blob);
     });
-    const content = await zip.generateAsync({type:'blob'});
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(content);
-    link.download = 'cropped_faces.zip';
+    const content=await zip.generateAsync({type:'blob'});
+    const link=document.createElement('a');
+    link.href=URL.createObjectURL(content);
+    link.download='faces.zip';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     statusDiv.textContent='Download prepared successfully.';
     statusDiv.className='status success';
   } catch(error){
-    statusDiv.textContent=`Error creating zip file: ${error.message}`;
+    statusDiv.textContent=`Error creating zip: ${error.message}`;
     statusDiv.className='status error';
-    console.error(error);
   }
 }
 
-function base64ToBlob(base64, mimeType){
-  const byteCharacters = atob(base64);
-  const byteArrays = [];
+function base64ToBlob(base64,mimeType){
+  const byteCharacters=atob(base64);
+  const byteArrays=[];
   for(let offset=0; offset<byteCharacters.length; offset+=512){
-    const slice = byteCharacters.slice(offset, offset+512);
-    const byteNumbers = new Array(slice.length);
+    const slice=byteCharacters.slice(offset,offset+512);
+    const byteNumbers=new Array(slice.length);
     for(let i=0;i<slice.length;i++) byteNumbers[i]=slice.charCodeAt(i);
-    const byteArray = new Uint8Array(byteNumbers);
+    const byteArray=new Uint8Array(byteNumbers);
     byteArrays.push(byteArray);
   }
   return new Blob(byteArrays,{type:mimeType});
@@ -366,5 +261,3 @@ initializeFaceAPI();
 </script>
 </body>
 </html>
-
-
