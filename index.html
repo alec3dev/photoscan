@@ -222,9 +222,9 @@
                     
                     const angle = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x) * 180 / Math.PI;
                     
-                    const cropRatioW = 1.5, cropRatioH = 2;
+                    const cropRatioW = 0.5, cropRatioH = 0.75;
                     // Adjust this multiplier to change the "zoom" level
-                    const zoomMultiplier = 1; 
+                    const zoomMultiplier = 3.5; 
                     let cropH = box.height * zoomMultiplier; 
                     let cropW = cropH * cropRatioW / cropRatioH;
                     
@@ -364,5 +364,6 @@
     </script>
 </body>
 </html>
+
 
 
