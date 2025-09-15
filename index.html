@@ -150,7 +150,6 @@
             statusDiv.textContent = 'Loading models...';
             statusDiv.className = 'status loading';
             try {
-                // Ensure all necessary models are loaded
                 await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
                 await faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
                 statusDiv.textContent = 'Models loaded. Ready.';
@@ -208,9 +207,11 @@
                 const initialFaces = detections.map(det => {
                     const lm = det.landmarks;
                     const box = det.detection.box;
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
                     
+                    const leftEye = centerPoint(lm.getLeftEye());
+                    const rightEye = centerPoint(lm.getRightEye());
+                    const angle = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x) * 180 / Math.PI;
+
                     const cropRatioW = 1.5, cropRatioH = 2;
                     let cropH = box.height * 2.0; 
                     let cropW = cropH * cropRatioW / cropRatioH;
@@ -224,11 +225,22 @@
                     
                     if (cropW <= 0 || cropH <= 0) return null;
                     
-                    canvas.width = cropW;
-                    canvas.height = cropH;
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
                     
-                    ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-                    return { imageData: canvas.toDataURL('image/jpeg'), x: cropX, y: cropY };
+                    // The canvas needs to be large enough to contain the rotated image without cropping
+                    const diagonal = Math.sqrt(cropW * cropW + cropH * cropH);
+                    canvas.width = diagonal;
+                    canvas.height = diagonal;
+                    
+                    ctx.translate(diagonal / 2, diagonal / 2);
+                    ctx.rotate(-angle * Math.PI / 180);
+                    
+                    ctx.drawImage(img, cropX, cropY, cropW, cropH, -cropW / 2, -cropH / 2, cropW, cropH);
+                    
+                    ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+                    return { imageData: canvas.toDataURL('image/jpeg'), x: cropX, y: cropY, width: cropW, height: cropH };
                 }).filter(f => f !== null);
 
                 statusDiv.textContent = 'Re-processing for tighter crop...';
@@ -238,25 +250,19 @@
                     const reDetection = await faceapi.detectSingleFace(tempImg, options).withFaceLandmarks();
 
                     if (!reDetection) {
-                        // Fallback to the initial crop if re-detection fails
-                        return { id: `face_${index + 1}`, imageData: face.imageData };
+                        return { id: `face_${index + 1}`, imageData: face.imageData, x: face.x, y: face.y };
                     }
                     
-                    const lm = reDetection.landmarks;
                     const box = reDetection.detection.box;
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
                     
-                    const leftEye = centerPoint(lm.getLeftEye());
-                    const rightEye = centerPoint(lm.getRightEye());
-                    const angle = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x) * 180 / Math.PI;
-
                     const cropRatioW = 1.5, cropRatioH = 2;
                     const zoomMultiplier = 1.5; 
                     let cropH = box.height * zoomMultiplier; 
                     let cropW = cropH * cropRatioW / cropRatioH;
                     
-                    const nose = centerPoint(lm.getNose());
+                    const nose = centerPoint(reDetection.landmarks.getNose());
                     let cropX = nose.x - cropW / 2;
                     let cropY = nose.y - cropH / 2;
                     
@@ -264,22 +270,19 @@
                     cropY = Math.max(0, Math.min(cropY, tempImg.height - cropH));
                     
                     if (cropW <= 0 || cropH <= 0) {
-                        return { id: `face_${index + 1}`, imageData: face.imageData };
+                        return { id: `face_${index + 1}`, imageData: face.imageData, x: face.x, y: face.y };
                     }
                     
                     canvas.width = cropW;
                     canvas.height = cropH;
                     
-                    ctx.translate(cropW / 2, cropH / 2);
-                    ctx.rotate(-angle * Math.PI / 180);
-                    ctx.drawImage(tempImg, cropX, cropY, cropW, cropH, -cropW / 2, -cropH / 2, cropW, cropH);
-                    ctx.setTransform(1, 0, 0, 1, 0, 0);
+                    ctx.drawImage(tempImg, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
 
                     return {
                         id: `face_${index + 1}`,
                         imageData: canvas.toDataURL('image/jpeg'),
                         x: face.x,
-                        y: face.y // Retain original coordinates for sorting
+                        y: face.y
                     };
                 }));
                 
