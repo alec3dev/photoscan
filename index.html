@@ -155,7 +155,7 @@ async function processImage() {
       return;
     }
 
-    const zoomFactor = 1.5; // 🔍 Zoom in on cropped faces
+    const zoomFactor = 2.5; // 🔍 Zoom in on cropped faces
 
     detectedFaces = detections.map((det, index) => {
       const lm = det.landmarks;
@@ -280,5 +280,6 @@ initializeFaceAPI();
 </script>
 </body>
 </html>
+
 
 
