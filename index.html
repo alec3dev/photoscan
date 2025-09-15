@@ -48,8 +48,8 @@
         .results {
             margin-top:20px;
             display:grid;
-            grid-template-columns: repeat(auto-fill, minmax(150px,1fr));
-            gap:10px;
+            grid-template-columns: repeat(auto-fill, minmax(200px,1fr));
+            gap:20px;
         }
         .face-card {
             border:1px solid #ddd;
@@ -112,57 +112,6 @@
             border-radius:3px;
             border:1px solid #ccc;
         }
-        /* Modal for zoomed face */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.9);
-            overflow: auto;
-            justify-content: center;
-            align-items: center;
-        }
-        .modal-content-container {
-            position: relative;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            width: 100%;
-            height: 100%;
-        }
-        .modal-content {
-            max-width: 90%;
-            max-height: 90%;
-            object-fit: contain;
-            transform-origin: center center;
-            transition: transform 0.3s ease;
-        }
-        .close {
-            position: absolute;
-            top: 15px;
-            right: 35px;
-            color: #f1f1f1;
-            font-size: 40px;
-            font-weight: bold;
-            cursor: pointer;
-            z-index: 1001;
-        }
-        .download-zoomed {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 15px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            z-index: 1001;
-        }
     </style>
 </head>
 <body>
@@ -173,9 +122,8 @@
             <ol>
                 <li>Upload an image containing faces</li>
                 <li>Click "Detect and Crop Faces" to process</li>
-                <li>Click on any face to view it larger</li>
-                <li>Rename each face in the text fields if desired</li>
                 <li>Download individual faces or all as ZIP</li>
+                <li>Rename each face in the text fields if desired</li>
             </ol>
             <div class="ratio-display">Crop Ratio: 1.5:2 (Width:Height)</div>
         </div>
@@ -192,44 +140,20 @@
         <h3>Detected Faces:</h3>
         <div id="results" class="results"></div>
     </div>
-
-    <!-- Modal for zoomed face -->
-    <div id="zoomModal" class="modal">
-        <span class="close">&times;</span>
-        <div class="modal-content-container">
-            <img class="modal-content" id="zoomedImage">
-        </div>
-        <button class="download-zoomed" id="downloadZoomed">Download Zoomed Face</button>
-    </div>
-
     <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script>
         let imageFile = null, detectedFaces = [];
-        let currentZoomFaceIndex = -1;
         const imageUpload = document.getElementById('imageUpload');
         const imagePreview = document.getElementById('imagePreview');
         const processButton = document.getElementById('processButton');
         const downloadAllButton = document.getElementById('downloadAllButton');
         const statusDiv = document.getElementById('status');
         const resultsDiv = document.getElementById('results');
-        const modal = document.getElementById('zoomModal');
-        const zoomedImage = document.getElementById('zoomedImage');
-        const closeModal = document.getElementsByClassName('close')[0];
-        const downloadZoomedBtn = document.getElementById('downloadZoomed');
 
         imageUpload.addEventListener('change', handleImageUpload);
         processButton.addEventListener('click', processImage);
         downloadAllButton.addEventListener('click', downloadAllFaces);
-        closeModal.addEventListener('click', () => modal.style.display = 'none');
-        downloadZoomedBtn.addEventListener('click', downloadZoomedFace);
-
-        // Close modal when clicking outside the image
-        window.addEventListener('click', (event) => {
-            if (event.target === modal) {
-                modal.style.display = 'none';
-            }
-        });
 
         async function initializeFaceAPI() {
             statusDiv.textContent = 'Loading models...';
@@ -293,49 +217,41 @@
                     const lm = det.landmarks;
                     const box = det.detection.box;
                     
-                    // Calculate center of eyes for rotation
                     const leftEye = centerPoint(lm.getLeftEye());
                     const rightEye = centerPoint(lm.getRightEye());
                     
-                    // Calculate angle for rotation
                     const angle = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x) * 180 / Math.PI;
                     
-                    // Calculate crop dimensions with a larger size for zoom capability
                     const cropRatioW = 1.5, cropRatioH = 2;
-                    let cropH = box.height * 2.5; // Increased from 1.8 to 2.5 for more zoom capability
+                    // Adjust this multiplier to change the "zoom" level
+                    const zoomMultiplier = 3.5; 
+                    let cropH = box.height * zoomMultiplier; 
                     let cropW = cropH * cropRatioW / cropRatioH;
                     
-                    // Center the crop on the face
                     const nose = centerPoint(lm.getNose());
                     let cropX = nose.x - cropW / 2;
                     let cropY = nose.y - cropH / 2;
                     
-                    // Ensure crop stays within image bounds
                     cropX = Math.max(0, Math.min(cropX, img.width - cropW));
                     cropY = Math.max(0, Math.min(cropY, img.height - cropH));
                     
                     if (cropW <= 0 || cropH <= 0) return null;
                     
-                    // Create canvas for the cropped and rotated face
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
                     
-                    // Set canvas size to the crop dimensions
                     canvas.width = cropW;
                     canvas.height = cropH;
                     
-                    // Translate to center of canvas and rotate
                     ctx.translate(cropW / 2, cropH / 2);
                     ctx.rotate(-angle * Math.PI / 180);
                     
-                    // Draw the image with offset to center the face
                     ctx.drawImage(
                         img, 
                         cropX, cropY, cropW, cropH,
                         -cropW / 2, -cropH / 2, cropW, cropH
                     );
                     
-                    // Reset transform
                     ctx.setTransform(1, 0, 0, 1, 0, 0);
                     
                     return {
@@ -344,13 +260,10 @@
                         x: cropX,
                         y: cropY,
                         width: cropW,
-                        height: cropH,
-                        originalWidth: canvas.width,
-                        originalHeight: canvas.height
+                        height: cropH
                     };
                 }).filter(f => f !== null);
                 
-                // Sort top-left → bottom-right
                 detectedFaces.sort((a, b) => {
                     const margin = 20;
                     if (Math.abs(a.y - b.y) < margin) return a.x - b.x;
@@ -377,7 +290,7 @@
                 const card = document.createElement('div');
                 card.className = 'face-card';
                 card.innerHTML = `
-                    <img src="${face.imageData}" class="face-image" alt="Face" data-index="${index}">
+                    <img src="${face.imageData}" class="face-image" alt="Face">
                     <input type="text" class="rename-field" value="" placeholder="Enter name for face" data-index="${index}">
                     <button class="button download-btn" data-index="${index}">Download</button>
                 `;
@@ -397,38 +310,6 @@
                     downloadFace(idx);
                 });
             });
-            
-            // Add click event to images for zooming
-            document.querySelectorAll('.face-image').forEach(img => {
-                img.addEventListener('click', () => {
-                    const idx = parseInt(img.dataset.index);
-                    zoomFace(idx);
-                });
-            });
-        }
-
-        function zoomFace(index) {
-            const face = detectedFaces[index];
-            if (!face) return;
-            
-            currentZoomFaceIndex = index;
-            zoomedImage.src = face.imageData;
-            
-            // Calculate optimal zoom factor based on viewport and face size
-            const viewportWidth = window.innerWidth * 0.8; // 80% of window width
-            const viewportHeight = window.innerHeight * 0.8; // 80% of window height
-            
-            // Calculate the scale needed to make the face fill most of the viewport
-            const scaleX = viewportWidth / face.originalWidth;
-            const scaleY = viewportHeight / face.originalHeight;
-            
-            // Use the smaller scale to ensure the entire face fits
-            const optimalScale = Math.min(scaleX, scaleY) * 0.9; // 90% to add some margin
-            
-            // Apply the zoom transformation
-            zoomedImage.style.transform = `scale(${optimalScale})`;
-            
-            modal.style.display = 'flex';
         }
 
         function downloadFace(index) {
@@ -441,41 +322,6 @@
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
-        }
-
-        function downloadZoomedFace() {
-            if (currentZoomFaceIndex === -1) return;
-            
-            const face = detectedFaces[currentZoomFaceIndex];
-            if (!face) return;
-            
-            // Create a canvas to capture the zoomed image
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            // Get the current scale from the transform
-            const transform = zoomedImage.style.transform;
-            const scaleMatch = transform.match(/scale\(([\d.]+)\)/);
-            const scale = scaleMatch ? parseFloat(scaleMatch[1]) : 1;
-            
-            // Set canvas dimensions to the scaled size
-            canvas.width = face.originalWidth * scale;
-            canvas.height = face.originalHeight * scale;
-            
-            // Draw the image at the scaled size
-            const img = new Image();
-            img.onload = function() {
-                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                
-                // Create download link
-                const link = document.createElement('a');
-                link.href = canvas.toDataURL('image/jpeg');
-                link.download = `${face.id}_zoomed.jpg`;
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            };
-            img.src = face.imageData;
         }
 
         async function downloadAllFaces() {
