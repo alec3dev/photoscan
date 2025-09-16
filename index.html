@@ -187,120 +187,139 @@
         }
 
         async function processImage() {
-            if (!imageFile) return;
-            
-            statusDiv.textContent = 'Detecting faces...';
-            statusDiv.className = 'status loading';
-            processButton.disabled = true;
-            
-            try {
-                const img = await faceapi.bufferToImage(imageFile);
-                const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.3 });
-                let detections = await faceapi.detectAllFaces(img, options).withFaceLandmarks();
-                
-                if (!detections.length) {
-                    statusDiv.textContent = 'No faces detected.';
-                    statusDiv.className = 'status error';
-                    processButton.disabled = false;
-                    return;
-                }
-                
-                const initialFaces = detections.map(det => {
-                    const lm = det.landmarks;
-                    const box = det.detection.box;
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    
-                    const cropRatioW = 1.5, cropRatioH = 2;
-                    let cropH = box.height * 2.0; 
-                    let cropW = cropH * cropRatioW / cropRatioH;
-                    
-                    const nose = centerPoint(lm.getNose());
-                    let cropX = nose.x - cropW / 2;
-                    let cropY = nose.y - cropH / 2;
-                    
-                    cropX = Math.max(0, Math.min(cropX, img.width - cropW));
-                    cropY = Math.max(0, Math.min(cropY, img.height - cropH));
-                    
-                    if (cropW <= 0 || cropH <= 0) return null;
-                    
-                    canvas.width = cropW;
-                    canvas.height = cropH;
-                    
-                    ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-                    return { imageData: canvas.toDataURL('image/jpeg'), x: cropX, y: cropY };
-                }).filter(f => f !== null);
+    if (!imageFile) return;
 
-                statusDiv.textContent = 'Re-processing for tighter crop...';
-                
-                detectedFaces = await Promise.all(initialFaces.map(async (face, index) => {
-                    const tempImg = await faceapi.bufferToImage(await (await fetch(face.imageData)).blob());
-                    const reDetection = await faceapi.detectSingleFace(tempImg, options).withFaceLandmarks();
+    statusDiv.textContent = 'Detecting faces...';
+    statusDiv.className = 'status loading';
+    processButton.disabled = true;
 
-                    if (!reDetection) {
-                        // Fallback to the initial crop if re-detection fails
-                        return { id: `face_${index + 1}`, imageData: face.imageData };
-                    }
-                    
-                    const lm = reDetection.landmarks;
-                    const box = reDetection.detection.box;
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    
-                    const leftEye = centerPoint(lm.getLeftEye());
-                    const rightEye = centerPoint(lm.getRightEye());
-                    const angle = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x) * 180 / Math.PI;
+    try {
+        const img = await faceapi.bufferToImage(imageFile);
+        const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.3 });
+        let detections = await faceapi.detectAllFaces(img, options).withFaceLandmarks();
 
-                    const cropRatioW = 1.5, cropRatioH = 2;
-                    const zoomMultiplier = 1.5; 
-                    let cropH = box.height * zoomMultiplier; 
-                    let cropW = cropH * cropRatioW / cropRatioH;
-                    
-                    const nose = centerPoint(lm.getNose());
-                    let cropX = nose.x - cropW / 2;
-                    let cropY = nose.y - cropH / 2;
-                    
-                    cropX = Math.max(0, Math.min(cropX, tempImg.width - cropW));
-                    cropY = Math.max(0, Math.min(cropY, tempImg.height - cropH));
-                    
-                    if (cropW <= 0 || cropH <= 0) {
-                        return { id: `face_${index + 1}`, imageData: face.imageData };
-                    }
-                    
-                    canvas.width = cropW;
-                    canvas.height = cropH;
-                    
-                    ctx.translate(cropW / 2, cropH / 2);
-                    ctx.rotate(-angle * Math.PI / 180);
-                    ctx.drawImage(tempImg, cropX, cropY, cropW, cropH, -cropW / 2, -cropH / 2, cropW, cropH);
-                    ctx.setTransform(1, 0, 0, 1, 0, 0);
-
-                    return {
-                        id: `face_${index + 1}`,
-                        imageData: canvas.toDataURL('image/jpeg'),
-                        x: face.x,
-                        y: face.y // Retain original coordinates for sorting
-                    };
-                }));
-                
-                detectedFaces.sort((a, b) => {
-                    const margin = 20;
-                    if (Math.abs(a.y - b.y) < margin) return a.x - b.x;
-                    return a.y - b.y;
-                });
-                
-                displayResults();
-                statusDiv.textContent = `Processed ${detectedFaces.length} faces.`;
-                statusDiv.className = 'status success';
-                downloadAllButton.disabled = false;
-            } catch(e) {
-                statusDiv.textContent = `Error: ${e.message}`;
-                statusDiv.className = 'status error';
-                console.error(e);
-            } finally {
-                processButton.disabled = false;
-            }
+        if (!detections.length) {
+            statusDiv.textContent = 'No faces detected.';
+            statusDiv.className = 'status error';
+            processButton.disabled = false;
+            return;
         }
+
+        // Helper to check if all key landmarks are inside the detection box
+        function isFullFace(landmarks, box) {
+            const points = [
+                ...landmarks.getLeftEye(),
+                ...landmarks.getRightEye(),
+                ...landmarks.getNose(),
+                ...landmarks.getMouth(),
+                ...landmarks.getJawOutline()
+            ];
+            return points.every(pt =>
+                pt.x >= box.x &&
+                pt.x <= box.x + box.width &&
+                pt.y >= box.y &&
+                pt.y <= box.y + box.height
+            );
+        }
+
+        const initialFaces = detections
+            .filter(det => isFullFace(det.landmarks, det.detection.box))
+            .map(det => {
+                const box = det.detection.box;
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+
+                const padding = 0.2;
+                let cropX = box.x - box.width * padding;
+                let cropY = box.y - box.height * padding;
+                let cropW = box.width * (1 + 2 * padding);
+                let cropH = box.height * (1 + 2 * padding);
+
+                cropX = Math.max(0, Math.min(cropX, img.width - cropW));
+                cropY = Math.max(0, Math.min(cropY, img.height - cropH));
+
+                if (cropW <= 0 || cropH <= 0) return null;
+
+                canvas.width = cropW;
+                canvas.height = cropH;
+                ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+                return {
+                    imageData: canvas.toDataURL('image/jpeg'),
+                    x: cropX,
+                    y: cropY
+                };
+            }).filter(f => f !== null);
+
+        statusDiv.textContent = 'Re-processing for tighter crop...';
+
+        detectedFaces = await Promise.all(initialFaces.map(async (face, index) => {
+            const tempImg = await faceapi.bufferToImage(await (await fetch(face.imageData)).blob());
+            const reDetection = await faceapi.detectSingleFace(tempImg, options).withFaceLandmarks();
+
+            if (!reDetection) {
+                return { id: `face_${index + 1}`, imageData: face.imageData };
+            }
+
+            const lm = reDetection.landmarks;
+            const box = reDetection.detection.box;
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+
+            const leftEye = centerPoint(lm.getLeftEye());
+            const rightEye = centerPoint(lm.getRightEye());
+            const angle = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x) * 180 / Math.PI;
+
+            const cropRatioW = 1.5, cropRatioH = 2;
+            const zoomMultiplier = 1.5;
+            let cropH = box.height * zoomMultiplier;
+            let cropW = cropH * cropRatioW / cropRatioH;
+
+            const nose = centerPoint(lm.getNose());
+            let cropX = nose.x - cropW / 2;
+            let cropY = nose.y - cropH / 2;
+
+            cropX = Math.max(0, Math.min(cropX, tempImg.width - cropW));
+            cropY = Math.max(0, Math.min(cropY, tempImg.height - cropH));
+
+            if (cropW <= 0 || cropH <= 0) {
+                return { id: `face_${index + 1}`, imageData: face.imageData };
+            }
+
+            canvas.width = cropW;
+            canvas.height = cropH;
+
+            ctx.translate(cropW / 2, cropH / 2);
+            ctx.rotate(-angle * Math.PI / 180);
+            ctx.drawImage(tempImg, cropX, cropY, cropW, cropH, -cropW / 2, -cropH / 2, cropW, cropH);
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+            return {
+                id: `face_${index + 1}`,
+                imageData: canvas.toDataURL('image/jpeg'),
+                x: face.x,
+                y: face.y
+            };
+        }));
+
+        detectedFaces.sort((a, b) => {
+            const margin = 20;
+            if (Math.abs(a.y - b.y) < margin) return a.x - b.x;
+            return a.y - b.y;
+        });
+
+        displayResults();
+        statusDiv.textContent = `Processed ${detectedFaces.length} full faces.`;
+        statusDiv.className = 'status success';
+        downloadAllButton.disabled = false;
+    } catch (e) {
+        statusDiv.textContent = `Error: ${e.message}`;
+        statusDiv.className = 'status error';
+        console.error(e);
+    } finally {
+        processButton.disabled = false;
+    }
+}
 
         function displayResults() {
             resultsDiv.innerHTML = '';
@@ -383,3 +402,4 @@
     </script>
 </body>
 </html>
+
