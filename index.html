@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Passport Photo Extractor</title>
+    <title>Photo Extractor</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -19,96 +19,95 @@
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
         h1 {
-            text-align:center;
-            color:#333;
+            text-align: center;
+            color: #333;
         }
         .upload-section {
-            margin-bottom:20px;
-            padding:15px;
-            border:2px dashed #ccc;
-            border-radius:5px;
-            text-align:center;
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 2px dashed #ccc;
+            border-radius: 5px;
+            text-align: center;
         }
         .button {
-            background-color:#4CAF50;
-            color:white;
-            padding:10px 15px;
-            border:none;
-            border-radius:4px;
-            cursor:pointer;
-            margin:5px;
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
         }
         .button:disabled {
-            background-color:#cccccc;
-            cursor:not-allowed;
+            background-color: #cccccc;
+            cursor: not-allowed;
         }
         .button:hover:not(:disabled) {
-            background-color:#45a049;
+            background-color: #45a049;
         }
         .results {
-            margin-top:20px;
-            display:grid;
+            margin-top: 20px;
+            display: grid;
             grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap:20px;
+            gap: 20px;
         }
-        .face-card {
-            border:1px solid #ddd;
-            border-radius:4px;
-            padding:10px;
-            text-align:center;
-            background-color:#f9f9f9;
+        .photo-card {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            text-align: center;
+            background-color: #f9f9f9;
             transition: transform 0.2s;
         }
-        .face-card:hover {
+        .photo-card:hover {
             transform: scale(1.03);
         }
-        .face-image {
-            max-width:100%;
-            height:auto;
-            border-radius:3px;
-            cursor: pointer;
+        .photo-image {
+            max-width: 100%;
+            height: auto;
+            border-radius: 3px;
         }
         .status {
-            margin:10px 0;
-            padding:10px;
-            border-radius:4px;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
         }
         .loading {
-            background-color:#e0f7fa;
-            color:#006064;
+            background-color: #e0f7fa;
+            color: #006064;
         }
         .success {
-            background-color:#e8f5e9;
-            color:#2e7d32;
+            background-color: #e8f5e9;
+            color: #2e7d32;
         }
         .error {
-            background-color:#ffebee;
-            color:#c62828;
+            background-color: #ffebee;
+            color: #c62828;
         }
         .instructions {
-            background-color:#fff3e0;
-            padding:15px;
-            border-radius:4px;
-            margin-bottom:20px;
+            background-color: #fff3e0;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
         }
         input.rename-field {
             width: 80%;
             margin-top: 5px;
-            padding:4px;
-            border-radius:3px;
-            border:1px solid #ccc;
+            padding: 4px;
+            border-radius: 3px;
+            border: 1px solid #ccc;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Passport Photo Extractor</h1>
+        <h1>Photo Extractor</h1>
         <div class="instructions">
             <h3>Instructions:</h3>
             <ol>
-                <li>Upload an image with multiple passport photos</li>
-                <li>Click "Extract Photos" to process</li>
-                <li>Download each photo individually or all as a ZIP</li>
+                <li>Upload a scanned image with multiple photos.</li>
+                <li>Click "Extract Photos" to process.</li>
+                <li>Download each photo individually or all as a ZIP.</li>
             </ol>
         </div>
         <div class="upload-section">
@@ -137,12 +136,13 @@
 
         imageUpload.addEventListener('change', handleImageUpload);
         processButton.addEventListener('click', processImage);
-        downloadAllButton.addEventListener('click', downloadAllFaces);
+        downloadAllButton.addEventListener('click', downloadAllPhotos);
 
         async function initializeFaceAPI() {
             statusDiv.textContent = 'Loading models...';
             statusDiv.className = 'status loading';
             try {
+                // We only need the tinyFaceDetector model for this task.
                 await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
                 statusDiv.textContent = 'Models loaded. Ready.';
                 statusDiv.className = 'status success';
@@ -169,8 +169,7 @@
             reader.readAsDataURL(file);
         }
 
-        // New function to handle face clustering and remove duplicates
-        function clusterFaces(detections, threshold = 0.3) {
+        function clusterDetections(detections, threshold = 0.3) {
             if (detections.length < 2) {
                 return detections;
             }
@@ -185,8 +184,8 @@
 
                 for (let j = i + 1; j < detections.length; j++) {
                     if (isAssigned[j]) continue;
-                    const d1 = detections[i].detection.box;
-                    const d2 = detections[j].detection.box;
+                    const d1 = detections[i].box;
+                    const d2 = detections[j].box;
 
                     const distance = Math.sqrt(Math.pow(d1.x - d2.x, 2) + Math.pow(d1.y - d2.y, 2));
                     const normalizedDistance = distance / Math.max(d1.width, d1.height, d2.width, d2.height);
@@ -198,10 +197,11 @@
                 }
                 clusters.push(cluster);
             }
+
             return clusters.map(cluster => {
                 let bestDetection = cluster[0];
                 for (let i = 1; i < cluster.length; i++) {
-                    if (cluster[i].detection.score > bestDetection.detection.score) {
+                    if (cluster[i].score > bestDetection.score) {
                         bestDetection = cluster[i];
                     }
                 }
@@ -219,9 +219,10 @@
             try {
                 const img = await faceapi.bufferToImage(imageFile);
                 const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 });
-                let detections = await faceapi.detectAllFaces(img, options);
                 
-                // Add this crucial check to handle cases where no faces are detected.
+                // Get the raw detection objects, which contain the box and score.
+                let detections = await faceapi.detectAllFaces(img, options).then(results => results.map(r => r.detection));
+                
                 if (!detections || detections.length === 0) {
                     statusDiv.textContent = 'No photos detected.';
                     statusDiv.className = 'status error';
@@ -229,45 +230,41 @@
                     return;
                 }
                 
-                detections = clusterFaces(detections);
+                // Cluster and filter to get unique detections
+                detections = clusterDetections(detections);
 
                 statusDiv.textContent = 'Extracting photos...';
                 
                 detectedPhotos = detections.map((det, index) => {
-                    // Check if the detection object is valid before accessing its properties.
-                    if (!det || !det.detection || !det.detection.box) {
-                        console.error("Invalid detection object found, skipping.");
-                        return null; // Return null for invalid detections
-                    }
+                    const box = det.box;
+
+                    // Calculate the photo dimensions based on face size.
+                    // These ratios can be tuned for different types of photos.
+                    const faceToPhotoWidthRatio = 0.5;
+                    const faceToPhotoHeightRatio = 0.6;
                     
-                    const box = det.detection.box;
+                    const photoWidth = box.width / faceToPhotoWidthRatio;
+                    const photoHeight = box.height / faceToPhotoHeightRatio;
 
-                    // Calculate an expanded bounding box to capture the full passport photo.
-                    const photoRatio = 1.5/2; 
-                    const faceToPhotoHeightRatio = 0.7; // Head typically takes up ~70% of photo height
-
-                    const photoH = box.height / faceToPhotoHeightRatio;
-                    const photoW = photoH * photoRatio;
+                    const photoX = box.x - (photoWidth - box.width) / 2;
+                    const photoY = box.y - (photoHeight - box.height) / 2;
                     
-                    const photoX = box.x - (photoW - box.width) / 2;
-                    const photoY = box.y - (photoH - box.height) / 2;
-
                     const finalCanvas = document.createElement('canvas');
                     const finalCtx = finalCanvas.getContext('2d');
                     
-                    finalCanvas.width = photoW;
-                    finalCanvas.height = photoH;
-                    
+                    finalCanvas.width = photoWidth;
+                    finalCanvas.height = photoHeight;
+
                     finalCtx.drawImage(
                         img,
                         photoX,
                         photoY,
-                        photoW,
-                        photoH,
+                        photoWidth,
+                        photoHeight,
                         0,
                         0,
-                        photoW,
-                        photoH
+                        photoWidth,
+                        photoHeight
                     );
 
                     return {
@@ -276,10 +273,10 @@
                         x: photoX,
                         y: photoY
                     };
-                }).filter(photo => photo !== null); // Filter out any null values
-
+                });
+                
                 detectedPhotos.sort((a, b) => {
-                    const margin = 50; // A threshold to determine if photos are on the same row
+                    const margin = 50; 
                     if (Math.abs(a.y - b.y) < margin) {
                         return a.x - b.x;
                     }
@@ -304,10 +301,10 @@
             
             detectedPhotos.forEach((photo, index) => {
                 const card = document.createElement('div');
-                card.className = 'face-card';
+                card.className = 'photo-card';
                 card.innerHTML = `
-                    <img src="${photo.imageData}" class="face-image" alt="Passport Photo">
-                    <input type="text" class="rename-field" value="" placeholder="Enter name for photo" data-index="${index}">
+                    <img src="${photo.imageData}" class="photo-image" alt="Extracted Photo">
+                    <input type="text" class="rename-field" value="" placeholder="Enter name" data-index="${index}">
                     <button class="button download-btn" data-index="${index}">Download</button>
                 `;
                 resultsDiv.appendChild(card);
@@ -323,12 +320,12 @@
             document.querySelectorAll('.download-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const idx = parseInt(btn.dataset.index);
-                    downloadFace(idx);
+                    downloadPhoto(idx);
                 });
             });
         }
 
-        function downloadFace(index) {
+        function downloadPhoto(index) {
             const photo = detectedPhotos[index];
             if (!photo) return;
             
@@ -340,7 +337,7 @@
             document.body.removeChild(link);
         }
 
-        async function downloadAllFaces() {
+        async function downloadAllPhotos() {
             if (!detectedPhotos.length) return;
             
             const zip = new JSZip();
@@ -352,7 +349,7 @@
             const content = await zip.generateAsync({ type: 'blob' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(content);
-            link.download = 'passport_photos.zip';
+            link.download = 'extracted_photos.zip';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
