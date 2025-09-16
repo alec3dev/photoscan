@@ -185,6 +185,51 @@
             };
         }
 
+        // New function to handle face clustering and remove duplicates
+        function clusterFaces(detections, threshold = 0.1) {
+            if (detections.length < 2) {
+                return detections;
+            }
+
+            const clusters = [];
+            const isAssigned = new Array(detections.length).fill(false);
+
+            for (let i = 0; i < detections.length; i++) {
+                if (isAssigned[i]) continue;
+
+                const cluster = [detections[i]];
+                isAssigned[i] = true;
+
+                for (let j = i + 1; j < detections.length; j++) {
+                    if (isAssigned[j]) continue;
+
+                    const d1 = detections[i].detection.box;
+                    const d2 = detections[j].detection.box;
+
+                    // Calculate a simple normalized distance
+                    const distance = Math.sqrt(Math.pow(d1.x - d2.x, 2) + Math.pow(d1.y - d2.y, 2));
+                    const normalizedDistance = distance / Math.max(d1.width, d1.height, d2.width, d2.height);
+
+                    if (normalizedDistance < threshold) {
+                        cluster.push(detections[j]);
+                        isAssigned[j] = true;
+                    }
+                }
+                clusters.push(cluster);
+            }
+
+            // Return the most confident detection from each cluster
+            return clusters.map(cluster => {
+                let bestDetection = cluster[0];
+                for (let i = 1; i < cluster.length; i++) {
+                    if (cluster[i].detection.score > bestDetection.detection.score) {
+                        bestDetection = cluster[i];
+                    }
+                }
+                return bestDetection;
+            });
+        }
+
         async function processImage() {
             if (!imageFile) return;
             
@@ -204,7 +249,12 @@
                     return;
                 }
                 
-                const initialFaces = detections.map(det => {
+                // Remove duplicate detections using clustering
+                detections = clusterFaces(detections);
+
+                statusDiv.textContent = 'Cropping and aligning faces...';
+                
+                const finalFaces = await Promise.all(detections.map(async (det, index) => {
                     const lm = det.landmarks;
                     const box = det.detection.box;
                     
@@ -213,79 +263,66 @@
                     const angle = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x) * 180 / Math.PI;
 
                     const cropRatioW = 1.5, cropRatioH = 2;
-                    let cropH = box.height * 2.0; 
+                    const zoomMultiplier = 1.5; 
+                    let cropH = box.height * zoomMultiplier; 
                     let cropW = cropH * cropRatioW / cropRatioH;
                     
                     const nose = centerPoint(lm.getNose());
                     let cropX = nose.x - cropW / 2;
                     let cropY = nose.y - cropH / 2;
                     
-                    cropX = Math.max(0, Math.min(cropX, img.width - cropW));
-                    cropY = Math.max(0, Math.min(cropY, img.height - cropH));
-                    
-                    if (cropW <= 0 || cropH <= 0) return null;
-                    
+                    // Center the rotation pivot on the nose
+                    const pivotX = nose.x;
+                    const pivotY = nose.y;
+
+                    // Calculate the new bounding box after rotation
+                    const cos = Math.cos(-angle * Math.PI / 180);
+                    const sin = Math.sin(-angle * Math.PI / 180);
+
+                    const rotatedCoords = [
+                        {x: cropX, y: cropY},
+                        {x: cropX + cropW, y: cropY},
+                        {x: cropX, y: cropY + cropH},
+                        {x: cropX + cropW, y: cropY + cropH},
+                    ].map(p => ({
+                        x: pivotX + (p.x - pivotX) * cos - (p.y - pivotY) * sin,
+                        y: pivotY + (p.x - pivotX) * sin + (p.y - pivotY) * cos
+                    }));
+
+                    const minX = Math.min(...rotatedCoords.map(p => p.x));
+                    const minY = Math.min(...rotatedCoords.map(p => p.y));
+                    const maxX = Math.max(...rotatedCoords.map(p => p.x));
+                    const maxY = Math.max(...rotatedCoords.map(p => p.y));
+
+                    const finalW = maxX - minX;
+                    const finalH = maxY - minY;
+
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
                     
-                    // The canvas needs to be large enough to contain the rotated image without cropping
-                    const diagonal = Math.sqrt(cropW * cropW + cropH * cropH);
-                    canvas.width = diagonal;
-                    canvas.height = diagonal;
+                    canvas.width = finalW;
+                    canvas.height = finalH;
                     
-                    ctx.translate(diagonal / 2, diagonal / 2);
+                    ctx.translate(finalW / 2, finalH / 2);
                     ctx.rotate(-angle * Math.PI / 180);
                     
-                    ctx.drawImage(img, cropX, cropY, cropW, cropH, -cropW / 2, -cropH / 2, cropW, cropH);
-                    
+                    ctx.drawImage(
+                        img, 
+                        cropX, cropY, cropW, cropH,
+                        (cropW / 2) - finalW / 2, (cropH / 2) - finalH / 2, cropW, cropH
+                    );
                     ctx.setTransform(1, 0, 0, 1, 0, 0);
-
-                    return { imageData: canvas.toDataURL('image/jpeg'), x: cropX, y: cropY, width: cropW, height: cropH };
-                }).filter(f => f !== null);
-
-                statusDiv.textContent = 'Re-processing for tighter crop...';
-                
-                detectedFaces = await Promise.all(initialFaces.map(async (face, index) => {
-                    const tempImg = await faceapi.bufferToImage(await (await fetch(face.imageData)).blob());
-                    const reDetection = await faceapi.detectSingleFace(tempImg, options).withFaceLandmarks();
-
-                    if (!reDetection) {
-                        return { id: `face_${index + 1}`, imageData: face.imageData, x: face.x, y: face.y };
-                    }
-                    
-                    const box = reDetection.detection.box;
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    
-                    const cropRatioW = 1.5, cropRatioH = 2;
-                    const zoomMultiplier = 1.5; 
-                    let cropH = box.height * zoomMultiplier; 
-                    let cropW = cropH * cropRatioW / cropRatioH;
-                    
-                    const nose = centerPoint(reDetection.landmarks.getNose());
-                    let cropX = nose.x - cropW / 2;
-                    let cropY = nose.y - cropH / 2;
-                    
-                    cropX = Math.max(0, Math.min(cropX, tempImg.width - cropW));
-                    cropY = Math.max(0, Math.min(cropY, tempImg.height - cropH));
-                    
-                    if (cropW <= 0 || cropH <= 0) {
-                        return { id: `face_${index + 1}`, imageData: face.imageData, x: face.x, y: face.y };
-                    }
-                    
-                    canvas.width = cropW;
-                    canvas.height = cropH;
-                    
-                    ctx.drawImage(tempImg, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
 
                     return {
                         id: `face_${index + 1}`,
                         imageData: canvas.toDataURL('image/jpeg'),
-                        x: face.x,
-                        y: face.y
+                        x: box.x,
+                        y: box.y
                     };
                 }));
                 
+                detectedFaces = finalFaces.filter(f => f !== null);
+
                 detectedFaces.sort((a, b) => {
                     const margin = 20;
                     if (Math.abs(a.y - b.y) < margin) return a.x - b.x;
