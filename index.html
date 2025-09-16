@@ -221,7 +221,8 @@
                 const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 });
                 let detections = await faceapi.detectAllFaces(img, options);
                 
-                if (!detections.length) {
+                // Add this crucial check to handle cases where no faces are detected.
+                if (!detections || detections.length === 0) {
                     statusDiv.textContent = 'No photos detected.';
                     statusDiv.className = 'status error';
                     processButton.disabled = false;
@@ -233,12 +234,15 @@
                 statusDiv.textContent = 'Extracting photos...';
                 
                 detectedPhotos = detections.map((det, index) => {
+                    // Check if the detection object is valid before accessing its properties.
+                    if (!det || !det.detection || !det.detection.box) {
+                        console.error("Invalid detection object found, skipping.");
+                        return null; // Return null for invalid detections
+                    }
+                    
                     const box = det.detection.box;
 
                     // Calculate an expanded bounding box to capture the full passport photo.
-                    // A passport photo has a specific aspect ratio, e.g., 35mm x 45mm (7:9 ratio).
-                    // We can use a standardized expansion ratio to capture the full photo.
-                    // Let's assume a common passport photo ratio (e.g., 1.5:2 or 3:4).
                     const photoRatio = 1.5/2; 
                     const faceToPhotoHeightRatio = 0.7; // Head typically takes up ~70% of photo height
 
@@ -272,10 +276,10 @@
                         x: photoX,
                         y: photoY
                     };
-                });
-                
+                }).filter(photo => photo !== null); // Filter out any null values
+
                 detectedPhotos.sort((a, b) => {
-                    const margin = 50; // A threshold to determine if faces are on the same row
+                    const margin = 50; // A threshold to determine if photos are on the same row
                     if (Math.abs(a.y - b.y) < margin) {
                         return a.x - b.x;
                     }
