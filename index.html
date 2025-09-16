@@ -1,8 +1,18 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Face Extractor</title>
+  <title>Face Extractor & Downloader</title>
   <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+  <style>
+    #facesContainer canvas {
+      margin: 10px;
+      border: 1px solid #ccc;
+    }
+    .face-block {
+      display: inline-block;
+      text-align: center;
+    }
+  </style>
 </head>
 <body>
   <h2>Upload an Image</h2>
@@ -26,13 +36,13 @@
     document.getElementById('imageUpload').addEventListener('change', async (event) => {
       const imageFile = event.target.files[0];
       const img = await faceapi.bufferToImage(imageFile);
-      document.body.append(img); // Optional: show original image
-
       const detections = await faceapi.detectAllFaces(img);
       const boxes = [];
 
-      for (const detection of detections) {
-        const box = detection.box;
+      document.getElementById('facesContainer').innerHTML = ''; // Clear previous
+
+      for (let i = 0; i < detections.length; i++) {
+        const box = detections[i].box;
         if (isDuplicate(box, boxes)) continue;
         boxes.push(box);
 
@@ -40,13 +50,20 @@
         canvas.width = box.width;
         canvas.height = box.height;
         const ctx = canvas.getContext('2d');
-        ctx.drawImage(
-          img,
-          box.x, box.y, box.width, box.height,
-          0, 0, box.width, box.height
-        );
+        ctx.drawImage(img, box.x, box.y, box.width, box.height, 0, 0, box.width, box.height);
 
-        document.getElementById('facesContainer').appendChild(canvas);
+        const dataURL = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.href = dataURL;
+        link.download = `face_${i + 1}.png`;
+        link.textContent = 'Download';
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'face-block';
+        wrapper.appendChild(canvas);
+        wrapper.appendChild(link);
+
+        document.getElementById('facesContainer').appendChild(wrapper);
       }
     });
 
