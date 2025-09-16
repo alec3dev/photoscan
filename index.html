@@ -185,6 +185,7 @@
             };
         }
 
+        // New function to handle face clustering and remove duplicates
         function clusterFaces(detections, threshold = 0.1) {
             if (detections.length < 2) {
                 return detections;
@@ -202,6 +203,7 @@
                     if (isAssigned[j]) continue;
                     const d1 = detections[i].detection.box;
                     const d2 = detections[j].detection.box;
+
                     const distance = Math.sqrt(Math.pow(d1.x - d2.x, 2) + Math.pow(d1.y - d2.y, 2));
                     const normalizedDistance = distance / Math.max(d1.width, d1.height, d2.width, d2.height);
 
@@ -212,6 +214,7 @@
                 }
                 clusters.push(cluster);
             }
+
             return clusters.map(cluster => {
                 let bestDetection = cluster[0];
                 for (let i = 1; i < cluster.length; i++) {
@@ -261,56 +264,70 @@
                     const headW = box.width * 2;
                     const headH = headBottomY - headTopY;
 
+                    // Create the final canvas for the rotated and cropped head
                     const finalCanvas = document.createElement('canvas');
                     const finalCtx = finalCanvas.getContext('2d');
 
-                    // Set the final canvas to the desired output ratio
-                    const finalW = headW;
-                    const finalH = headH;
-                    finalCanvas.width = finalW;
-                    finalCanvas.height = finalH;
+                    finalCanvas.width = headW;
+                    finalCanvas.height = headH;
 
-                    // Create an intermediate canvas for rotation
-                    const rotatedCanvas = document.createElement('canvas');
-                    const rotatedCtx = rotatedCanvas.getContext('2d');
-
-                    // Make the rotated canvas large enough to hold the rotated image without cropping
-                    const diagonal = Math.sqrt(Math.pow(img.width, 2) + Math.pow(img.height, 2));
-                    rotatedCanvas.width = diagonal;
-                    rotatedCanvas.height = diagonal;
-
-                    // Rotate the image
-                    rotatedCtx.translate(rotatedCanvas.width / 2, rotatedCanvas.height / 2);
-                    rotatedCtx.rotate(-angle * Math.PI / 180);
-                    rotatedCtx.drawImage(img, -img.width / 2, -img.height / 2);
-                    rotatedCtx.setTransform(1, 0, 0, 1, 0, 0);
-
-                    // Re-calculate bounding box coordinates for the rotated image
-                    const rotatedBox = faceapi.rotateRect(
-                        { x: headX, y: headTopY, width: headW, height: headH },
-                        img.width,
-                        img.height,
-                        angle,
-                        rotatedCanvas.width,
-                        rotatedCanvas.height
+                    // Center the rotation on the canvas
+                    finalCtx.translate(finalCanvas.width / 2, finalCanvas.height / 2);
+                    finalCtx.rotate(-angle * Math.PI / 180);
+                    
+                    // Draw the original image onto the canvas, rotated and shifted to center the head
+                    finalCtx.drawImage(
+                        img, 
+                        headX, 
+                        headTopY, 
+                        headW, 
+                        headH,
+                        -finalCanvas.width / 2, 
+                        -finalCanvas.height / 2, 
+                        finalCanvas.width, 
+                        finalCanvas.height
                     );
                     
-                    // Now crop the final image from the rotated canvas
-                    finalCtx.drawImage(
-                        rotatedCanvas,
-                        rotatedBox.x,
-                        rotatedBox.y,
-                        rotatedBox.width,
-                        rotatedBox.height,
-                        0,
-                        0,
-                        finalW,
-                        finalH
+                    // Reset the canvas transform
+                    finalCtx.setTransform(1, 0, 0, 1, 0, 0);
+
+                    // Re-process the rotated image to get an accurate final crop
+                    const tempImg = await faceapi.bufferToImage(await (await fetch(finalCanvas.toDataURL('image/jpeg'))).blob());
+                    const reDetection = await faceapi.detectSingleFace(tempImg, options).withFaceLandmarks();
+
+                    if (!reDetection) {
+                        return { id: `head_${index + 1}`, imageData: finalCanvas.toDataURL('image/jpeg'), x: box.x, y: box.y };
+                    }
+                    
+                    const reBox = reDetection.detection.box;
+                    const reLm = reDetection.landmarks;
+
+                    // Calculate a new, even more precise bounding box from the re-detection
+                    const reHeadTopY = reBox.y - reBox.height * 0.7;
+                    const reHeadBottomY = reBox.y + reBox.height * 1.3;
+                    const reHeadX = reBox.x - reBox.width * 0.5;
+                    const reHeadW = reBox.width * 2;
+                    const reHeadH = reHeadBottomY - reHeadTopY;
+
+                    const finalFinalCanvas = document.createElement('canvas');
+                    const finalFinalCtx = finalFinalCanvas.getContext('2d');
+                    finalFinalCanvas.width = reHeadW;
+                    finalFinalCanvas.height = reHeadH;
+
+                    finalFinalCtx.drawImage(
+                        tempImg,
+                        reHeadX,
+                        reHeadTopY,
+                        reHeadW,
+                        reHeadH,
+                        0, 0,
+                        reHeadW,
+                        reHeadH
                     );
 
                     return {
                         id: `head_${index + 1}`,
-                        imageData: finalCanvas.toDataURL('image/jpeg'),
+                        imageData: finalFinalCanvas.toDataURL('image/jpeg'),
                         x: box.x,
                         y: box.y
                     };
@@ -336,47 +353,6 @@
                 processButton.disabled = false;
             }
         }
-
-        // Helper function to rotate a bounding box along with the image
-        faceapi.rotateRect = function(rect, imgW, imgH, angle, newW, newH) {
-            const centerX = imgW / 2;
-            const centerY = imgH / 2;
-            const cos = Math.cos(angle * Math.PI / 180);
-            const sin = Math.sin(angle * Math.PI / 180);
-
-            // Translate coordinates to origin, rotate, then translate back
-            const points = [
-                { x: rect.x, y: rect.y },
-                { x: rect.x + rect.width, y: rect.y },
-                { x: rect.x, y: rect.y + rect.height },
-                { x: rect.x + rect.width, y: rect.y + rect.height },
-            ].map(p => {
-                const rotatedX = centerX + (p.x - centerX) * cos - (p.y - centerY) * sin;
-                const rotatedY = centerY + (p.x - centerX) * sin + (p.y - centerY) * cos;
-                return { x: rotatedX, y: rotatedY };
-            });
-
-            // Adjust coordinates to the new rotated canvas
-            const newCenterX = newW / 2;
-            const newCenterY = newH / 2;
-            const adjustedPoints = points.map(p => ({
-                x: p.x - centerX + newCenterX,
-                y: p.y - centerY + newCenterY,
-            }));
-
-            // Find the new bounding box for the rotated points
-            const minX = Math.min(...adjustedPoints.map(p => p.x));
-            const minY = Math.min(...adjustedPoints.map(p => p.y));
-            const maxX = Math.max(...adjustedPoints.map(p => p.x));
-            const maxY = Math.max(...adjustedPoints.map(p => p.y));
-
-            return {
-                x: minX,
-                y: minY,
-                width: maxX - minX,
-                height: maxY - minY
-            };
-        };
 
         function displayResults() {
             resultsDiv.innerHTML = '';
