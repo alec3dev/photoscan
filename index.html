@@ -1,379 +1,88 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Photo Extractor</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        h1 {
-            text-align: center;
-            color: #333;
-        }
-        .upload-section {
-            margin-bottom: 20px;
-            padding: 15px;
-            border: 2px dashed #ccc;
-            border-radius: 5px;
-            text-align: center;
-        }
-        .button {
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 15px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            margin: 5px;
-        }
-        .button:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-        }
-        .button:hover:not(:disabled) {
-            background-color: #45a049;
-        }
-        .results {
-            margin-top: 20px;
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 20px;
-        }
-        .photo-card {
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 10px;
-            text-align: center;
-            background-color: #f9f9f9;
-            transition: transform 0.2s;
-        }
-        .photo-card:hover {
-            transform: scale(1.03);
-        }
-        .photo-image {
-            max-width: 100%;
-            height: auto;
-            border-radius: 3px;
-        }
-        .status {
-            margin: 10px 0;
-            padding: 10px;
-            border-radius: 4px;
-        }
-        .loading {
-            background-color: #e0f7fa;
-            color: #006064;
-        }
-        .success {
-            background-color: #e8f5e9;
-            color: #2e7d32;
-        }
-        .error {
-            background-color: #ffebee;
-            color: #c62828;
-        }
-        .instructions {
-            background-color: #fff3e0;
-            padding: 15px;
-            border-radius: 4px;
-            margin-bottom: 20px;
-        }
-        input.rename-field {
-            width: 80%;
-            margin-top: 5px;
-            padding: 4px;
-            border-radius: 3px;
-            border: 1px solid #ccc;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <title>Crop & Download Portraits</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    canvas { border: 1px solid #ccc; margin-bottom: 10px; }
+    .preview { display: flex; flex-wrap: wrap; gap: 10px; }
+    .crop-box { display: flex; flex-direction: column; align-items: center; }
+    input[type="text"] { margin-top: 5px; }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Photo Extractor</h1>
-        <div class="instructions">
-            <h3>Instructions:</h3>
-            <ol>
-                <li>Upload a scanned image with multiple photos.</li>
-                <li>Click "Extract Photos" to process.</li>
-                <li>Download each photo individually or all as a ZIP.</li>
-            </ol>
-        </div>
-        <div class="upload-section">
-            <h3>Upload Image</h3>
-            <input type="file" id="imageUpload" accept="image/*">
-            <div id="imagePreview"></div>
-        </div>
-        <div>
-            <button id="processButton" class="button" disabled>Extract Photos</button>
-            <button id="downloadAllButton" class="button" disabled>Download All</button>
-        </div>
-        <div id="status" class="status"></div>
-        <h3>Extracted Photos:</h3>
-        <div id="results" class="results"></div>
-    </div>
-    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script>
-        let imageFile = null, detectedPhotos = [];
-        const imageUpload = document.getElementById('imageUpload');
-        const imagePreview = document.getElementById('imagePreview');
-        const processButton = document.getElementById('processButton');
-        const downloadAllButton = document.getElementById('downloadAllButton');
-        const statusDiv = document.getElementById('status');
-        const resultsDiv = document.getElementById('results');
 
-        imageUpload.addEventListener('change', handleImageUpload);
-        processButton.addEventListener('click', processImage);
-        downloadAllButton.addEventListener('click', downloadAllPhotos);
+<h2>Upload Image</h2>
+<input type="file" id="imageInput" accept="image/*"><br><br>
+<canvas id="mainCanvas"></canvas>
 
-        async function initializeFaceAPI() {
-            statusDiv.textContent = 'Loading models...';
-            statusDiv.className = 'status loading';
-            try {
-                // We only need the tinyFaceDetector model for this task.
-                await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
-                statusDiv.textContent = 'Models loaded. Ready.';
-                statusDiv.className = 'status success';
-            } catch(e) {
-                statusDiv.textContent = `Error: ${e.message}`;
-                statusDiv.className = 'status error';
-                console.error(e);
-            }
-        }
+<h2>Cropped Previews</h2>
+<div class="preview" id="previewContainer"></div>
 
-        function handleImageUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            imageFile = file;
-            resultsDiv.innerHTML = '';
-            detectedPhotos = [];
-            downloadAllButton.disabled = true;
-            
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                imagePreview.innerHTML = `<img src="${e.target.result}" style="max-width:100%; max-height:300px;">`;
-                processButton.disabled = false;
-            };
-            reader.readAsDataURL(file);
-        }
+<script>
+const canvas = document.getElementById('mainCanvas');
+const ctx = canvas.getContext('2d');
+const previewContainer = document.getElementById('previewContainer');
 
-        function clusterDetections(detections, threshold = 0.3) {
-            if (detections.length < 2) {
-                return detections;
-            }
+document.getElementById('imageInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
 
-            const clusters = [];
-            const isAssigned = new Array(detections.length).fill(false);
+  const img = new Image();
+  img.onload = () => {
+    canvas.width = img.width;
+    canvas.height = img.height;
+    ctx.drawImage(img, 0, 0);
+    extractPortraits(img);
+  };
+  img.src = URL.createObjectURL(file);
+});
 
-            for (let i = 0; i < detections.length; i++) {
-                if (isAssigned[i]) continue;
-                const cluster = [detections[i]];
-                isAssigned[i] = true;
+function extractPortraits(img) {
+  previewContainer.innerHTML = '';
 
-                for (let j = i + 1; j < detections.length; j++) {
-                    if (isAssigned[j]) continue;
-                    const d1 = detections[i].box;
-                    const d2 = detections[j].box;
+  // Define rectangles manually (based on your image layout)
+  const boxes = [
+    { x: 50, y: 50, w: 200, h: 250 },
+    { x: 300, y: 50, w: 200, h: 250 },
+    { x: 550, y: 50, w: 200, h: 250 },
+    { x: 50, y: 350, w: 200, h: 250 },
+    { x: 300, y: 350, w: 200, h: 250 },
+    { x: 550, y: 350, w: 200, h: 250 },
+    { x: 800, y: 350, w: 200, h: 250 }
+  ];
 
-                    const distance = Math.sqrt(Math.pow(d1.x - d2.x, 2) + Math.pow(d1.y - d2.y, 2));
-                    const normalizedDistance = distance / Math.max(d1.width, d1.height, d2.width, d2.height);
+  boxes.forEach((box, i) => {
+    const cropCanvas = document.createElement('canvas');
+    cropCanvas.width = box.w;
+    cropCanvas.height = box.h;
+    const cropCtx = cropCanvas.getContext('2d');
+    cropCtx.drawImage(img, box.x, box.y, box.w, box.h, 0, 0, box.w, box.h);
 
-                    if (normalizedDistance < threshold) {
-                        cluster.push(detections[j]);
-                        isAssigned[j] = true;
-                    }
-                }
-                clusters.push(cluster);
-            }
+    const container = document.createElement('div');
+    container.className = 'crop-box';
 
-            return clusters.map(cluster => {
-                let bestDetection = cluster[0];
-                for (let i = 1; i < cluster.length; i++) {
-                    if (cluster[i].score > bestDetection.score) {
-                        bestDetection = cluster[i];
-                    }
-                }
-                return bestDetection;
-            });
-        }
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = `portrait_${i + 1}.png`;
 
-        async function processImage() {
-            if (!imageFile) return;
-            
-            statusDiv.textContent = 'Detecting photos...';
-            statusDiv.className = 'status loading';
-            processButton.disabled = true;
-            
-            try {
-                const img = await faceapi.bufferToImage(imageFile);
-                const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 });
-                
-                // Get the raw detection objects, which contain the box and score.
-                let detections = await faceapi.detectAllFaces(img, options).then(results => results.map(r => r.detection));
-                
-                if (!detections || detections.length === 0) {
-                    statusDiv.textContent = 'No photos detected.';
-                    statusDiv.className = 'status error';
-                    processButton.disabled = false;
-                    return;
-                }
-                
-                // Cluster and filter to get unique detections
-                detections = clusterDetections(detections);
+    const button = document.createElement('button');
+    button.textContent = 'Download';
+    button.onclick = () => {
+      const link = document.createElement('a');
+      link.download = input.value || `portrait_${i + 1}.png`;
+      link.href = cropCanvas.toDataURL();
+      link.click();
+    };
 
-                statusDiv.textContent = 'Extracting photos...';
-                
-                detectedPhotos = detections.map((det, index) => {
-                    const box = det.box;
+    container.appendChild(cropCanvas);
+    container.appendChild(input);
+    container.appendChild(button);
+    previewContainer.appendChild(container);
+  });
+}
+</script>
 
-                    // Calculate the photo dimensions based on face size.
-                    // These ratios can be tuned for different types of photos.
-                    const faceToPhotoWidthRatio = 0.5;
-                    const faceToPhotoHeightRatio = 0.6;
-                    
-                    const photoWidth = box.width / faceToPhotoWidthRatio;
-                    const photoHeight = box.height / faceToPhotoHeightRatio;
-
-                    const photoX = box.x - (photoWidth - box.width) / 2;
-                    const photoY = box.y - (photoHeight - box.height) / 2;
-                    
-                    const finalCanvas = document.createElement('canvas');
-                    const finalCtx = finalCanvas.getContext('2d');
-                    
-                    finalCanvas.width = photoWidth;
-                    finalCanvas.height = photoHeight;
-
-                    finalCtx.drawImage(
-                        img,
-                        photoX,
-                        photoY,
-                        photoWidth,
-                        photoHeight,
-                        0,
-                        0,
-                        photoWidth,
-                        photoHeight
-                    );
-
-                    return {
-                        id: `photo_${index + 1}`,
-                        imageData: finalCanvas.toDataURL('image/jpeg'),
-                        x: photoX,
-                        y: photoY
-                    };
-                });
-                
-                detectedPhotos.sort((a, b) => {
-                    const margin = 50; 
-                    if (Math.abs(a.y - b.y) < margin) {
-                        return a.x - b.x;
-                    }
-                    return a.y - b.y;
-                });
-                
-                displayResults();
-                statusDiv.textContent = `Processed ${detectedPhotos.length} photos.`;
-                statusDiv.className = 'status success';
-                downloadAllButton.disabled = false;
-            } catch(e) {
-                statusDiv.textContent = `Error: ${e.message}`;
-                statusDiv.className = 'status error';
-                console.error(e);
-            } finally {
-                processButton.disabled = false;
-            }
-        }
-
-        function displayResults() {
-            resultsDiv.innerHTML = '';
-            
-            detectedPhotos.forEach((photo, index) => {
-                const card = document.createElement('div');
-                card.className = 'photo-card';
-                card.innerHTML = `
-                    <img src="${photo.imageData}" class="photo-image" alt="Extracted Photo">
-                    <input type="text" class="rename-field" value="" placeholder="Enter name" data-index="${index}">
-                    <button class="button download-btn" data-index="${index}">Download</button>
-                `;
-                resultsDiv.appendChild(card);
-            });
-            
-            document.querySelectorAll('.rename-field').forEach(input => {
-                input.addEventListener('input', () => {
-                    const idx = parseInt(input.dataset.index);
-                    detectedPhotos[idx].id = input.value.trim() || `photo_${idx + 1}`;
-                });
-            });
-            
-            document.querySelectorAll('.download-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const idx = parseInt(btn.dataset.index);
-                    downloadPhoto(idx);
-                });
-            });
-        }
-
-        function downloadPhoto(index) {
-            const photo = detectedPhotos[index];
-            if (!photo) return;
-            
-            const link = document.createElement('a');
-            link.href = photo.imageData;
-            link.download = `${photo.id}.jpg`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        async function downloadAllPhotos() {
-            if (!detectedPhotos.length) return;
-            
-            const zip = new JSZip();
-            detectedPhotos.forEach(photo => {
-                const data = photo.imageData.split(',')[1];
-                zip.file(`${photo.id}.jpg`, base64ToBlob(data, 'image/jpeg'));
-            });
-            
-            const content = await zip.generateAsync({ type: 'blob' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(content);
-            link.download = 'extracted_photos.zip';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        function base64ToBlob(base64, mimeType) {
-            const byteCharacters = atob(base64);
-            const byteArrays = [];
-            
-            for (let offset = 0; offset < byteCharacters.length; offset += 512) {
-                const slice = byteCharacters.slice(offset, offset + 512);
-                const byteNumbers = new Array(slice.length);
-                
-                for (let i = 0; i < slice.length; i++) {
-                    byteNumbers[i] = slice.charCodeAt(i);
-                }
-                
-                byteArrays.push(new Uint8Array(byteNumbers));
-            }
-            
-            return new Blob(byteArrays, { type: mimeType });
-        }
-
-        initializeFaceAPI();
-    </script>
 </body>
 </html>
