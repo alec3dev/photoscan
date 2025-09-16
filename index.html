@@ -1,73 +1,531 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Face Extractor & Downloader</title>
-  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
-  <style>
-    #facesContainer canvas {
-      margin: 10px;
-      border: 1px solid #ccc;
-    }
-    .face-block {
-      display: inline-block;
-      text-align: center;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Extraction Tool</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f5f5f5;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            color: #2c3e50;
+        }
+        
+        .upload-section {
+            border: 2px dashed #3498db;
+            border-radius: 8px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 30px;
+            background-color: #f8fafc;
+            transition: all 0.3s;
+        }
+        
+        .upload-section:hover {
+            background-color: #e8f4fc;
+        }
+        
+        .upload-section p {
+            margin: 10px 0;
+            color: #7f8c8d;
+        }
+        
+        #file-input {
+            display: none;
+        }
+        
+        .upload-btn {
+            background-color: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        
+        .upload-btn:hover {
+            background-color: #2980b9;
+        }
+        
+        .preview-section {
+            margin-bottom: 30px;
+        }
+        
+        .section-title {
+            font-size: 18px;
+            margin-bottom: 15px;
+            color: #2c3e50;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        #image-preview {
+            max-width: 100%;
+            display: block;
+            margin: 0 auto;
+            border-radius: 4px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        #process-btn {
+            display: block;
+            margin: 20px auto;
+            background-color: #2ecc71;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        
+        #process-btn:hover {
+            background-color: #27ae60;
+        }
+        
+        #process-btn:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        
+        .results-section {
+            margin-top: 30px;
+        }
+        
+        #faces-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .face-card {
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s;
+        }
+        
+        .face-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .face-img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            display: block;
+        }
+        
+        .face-actions {
+            padding: 10px;
+            text-align: center;
+            background-color: #f8fafc;
+        }
+        
+        .download-btn {
+            background-color: #9b59b6;
+            color: white;
+            padding: 5px 10px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        
+        .download-btn:hover {
+            background-color: #8e44ad;
+        }
+        
+        #download-all {
+            display: block;
+            margin: 20px auto;
+            background-color: #e74c3c;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        
+        #download-all:hover {
+            background-color: #c0392b;
+        }
+        
+        #download-all:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            text-align: center;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        
+        .status.info {
+            background-color: #d6eaf8;
+            color: #2874a6;
+        }
+        
+        .status.error {
+            background-color: #fadbd8;
+            color: #c0392b;
+        }
+        
+        .status.success {
+            background-color: #d5f5e3;
+            color: #27ae60;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
 </head>
 <body>
-  <h2>Upload an Image</h2>
-  <input type="file" id="imageUpload" accept="image/*" />
-  <div id="facesContainer"></div>
+    <div class="container">
+        <h1>Face Extraction Tool</h1>
+        
+        <div class="upload-section">
+            <h2>Upload an Image</h2>
+            <p>Supported formats: JPG, PNG, WEBP</p>
+            <input type="file" id="file-input" accept="image/jpeg, image/png, image/webp">
+            <button class="upload-btn" id="upload-btn">Choose Image</button>
+        </div>
+        
+        <div class="preview-section">
+            <h3 class="section-title">Original Image</h3>
+            <img id="image-preview" class="hidden">
+            <div id="status" class="status info hidden"></div>
+            <button id="process-btn" disabled>Extract Faces</button>
+        </div>
+        
+        <div class="results-section">
+            <h3 class="section-title">Extracted Faces</h3>
+            <div id="faces-container"></div>
+            <button id="download-all" disabled>Download All as ZIP</button>
+        </div>
+    </div>
 
-  <script>
-    async function loadModels() {
-      await faceapi.nets.ssdMobilenetv1.loadFromUri('/models');
-    }
-
-    function isDuplicate(box, boxes) {
-      return boxes.some(b =>
-        Math.abs(b.x - box.x) < 5 &&
-        Math.abs(b.y - box.y) < 5 &&
-        Math.abs(b.width - box.width) < 5 &&
-        Math.abs(b.height - box.height) < 5
-      );
-    }
-
-    document.getElementById('imageUpload').addEventListener('change', async (event) => {
-      const imageFile = event.target.files[0];
-      const img = await faceapi.bufferToImage(imageFile);
-      const detections = await faceapi.detectAllFaces(img);
-      const boxes = [];
-
-      document.getElementById('facesContainer').innerHTML = ''; // Clear previous
-
-      for (let i = 0; i < detections.length; i++) {
-        const box = detections[i].box;
-        if (isDuplicate(box, boxes)) continue;
-        boxes.push(box);
-
-        const canvas = document.createElement('canvas');
-        canvas.width = box.width;
-        canvas.height = box.height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, box.x, box.y, box.width, box.height, 0, 0, box.width, box.height);
-
-        const dataURL = canvas.toDataURL('image/png');
-        const link = document.createElement('a');
-        link.href = dataURL;
-        link.download = `face_${i + 1}.png`;
-        link.textContent = 'Download';
-
-        const wrapper = document.createElement('div');
-        wrapper.className = 'face-block';
-        wrapper.appendChild(canvas);
-        wrapper.appendChild(link);
-
-        document.getElementById('facesContainer').appendChild(wrapper);
-      }
-    });
-
-    loadModels();
-  </script>
+    <!-- Load face-api.js from CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.6.9/dist/face-api.min.js"></script>
+    <!-- Load JSZip and FileSaver.js for zip functionality -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    
+    <script>
+        // DOM elements
+        const fileInput = document.getElementById('file-input');
+        const uploadBtn = document.getElementById('upload-btn');
+        const imagePreview = document.getElementById('image-preview');
+        const processBtn = document.getElementById('process-btn');
+        const facesContainer = document.getElementById('faces-container');
+        const downloadAllBtn = document.getElementById('download-all');
+        const statusDiv = document.getElementById('status');
+        
+        // Global variables
+        let originalImage = null;
+        let detectedFaces = [];
+        
+        // Event listeners
+        uploadBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', handleImageUpload);
+        processBtn.addEventListener('click', processImage);
+        downloadAllBtn.addEventListener('click', downloadAllFaces);
+        
+        // Initialize face-api.js models
+        async function initializeModels() {
+            statusDiv.textContent = 'Loading face detection models...';
+            statusDiv.classList.remove('hidden');
+            
+            try {
+                // Load models from CDN
+                await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.6.9/model/');
+                await faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.6.9/model/');
+                
+                statusDiv.textContent = 'Models loaded successfully!';
+                setTimeout(() => statusDiv.classList.add('hidden'), 2000);
+            } catch (error) {
+                statusDiv.textContent = `Error loading models: ${error.message}`;
+                statusDiv.classList.add('error');
+            }
+        }
+        
+        // Handle image upload
+        function handleImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            if (!file.type.match('image/jpeg') && 
+                !file.type.match('image/png') && 
+                !file.type.match('image/webp')) {
+                statusDiv.textContent = 'Please upload a JPEG, PNG, or WEBP image';
+                statusDiv.classList.remove('hidden');
+                statusDiv.classList.add('error');
+                return;
+            }
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                originalImage = new Image();
+                originalImage.onload = function() {
+                    imagePreview.src = e.target.result;
+                    imagePreview.classList.remove('hidden');
+                    processBtn.disabled = false;
+                    
+                    // Clear previous results
+                    facesContainer.innerHTML = '';
+                    detectedFaces = [];
+                    downloadAllBtn.disabled = true;
+                    
+                    statusDiv.classList.add('hidden');
+                };
+                originalImage.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        // Process image to detect faces
+        async function processImage() {
+            if (!originalImage) return;
+            
+            statusDiv.textContent = 'Detecting faces...';
+            statusDiv.classList.remove('hidden');
+            statusDiv.classList.remove('error');
+            statusDiv.classList.add('info');
+            
+            processBtn.disabled = true;
+            
+            try {
+                // Detect faces
+                const detectionOptions = new faceapi.TinyFaceDetectorOptions({
+                    inputSize: 512,
+                    scoreThreshold: 0.5
+                });
+                
+                const detections = await faceapi
+                    .detectAllFaces(originalImage, detectionOptions)
+                    .withFaceLandmarks();
+                
+                if (detections.length === 0) {
+                    statusDiv.textContent = 'No faces detected';
+                    statusDiv.classList.add('error');
+                    processBtn.disabled = false;
+                    return;
+                }
+                
+                statusDiv.textContent = `Detected ${detections.length} face(s)`;
+                statusDiv.classList.add('success');
+                
+                // Extract and display faces
+                extractFaces(detections);
+                
+            } catch (error) {
+                statusDiv.textContent = `Error detecting faces: ${error.message}`;
+                statusDiv.classList.add('error');
+                processBtn.disabled = false;
+            }
+        }
+        
+        // Extract faces from detections
+        function extractFaces(detections) {
+            facesContainer.innerHTML = '';
+            detectedFaces = [];
+            
+            // Use a Set to track unique faces and avoid duplicates
+            const uniqueFaces = new Set();
+            
+            detections.forEach((detection, index) => {
+                const box = detection.detection.box;
+                
+                // Create a signature for this face to check for duplicates
+                const faceSignature = `${Math.round(box.x)}_${Math.round(box.y)}_${Math.round(box.width)}_${Math.round(box.height)}`;
+                
+                // Skip if we've already processed a very similar face
+                if (uniqueFaces.has(faceSignature)) {
+                    return;
+                }
+                
+                uniqueFaces.add(faceSignature);
+                
+                // Create canvas to extract the face
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.width = box.width;
+                canvas.height = box.height;
+                
+                // Draw the face on the canvas
+                context.drawImage(
+                    originalImage,
+                    box.x, box.y, box.width, box.height,
+                    0, 0, box.width, box.height
+                );
+                
+                // Convert to data URL
+                const faceDataUrl = canvas.toDataURL('image/png');
+                
+                // Store the face data
+                detectedFaces.push({
+                    id: index,
+                    dataUrl: faceDataUrl,
+                    width: box.width,
+                    height: box.height
+                });
+                
+                // Create face card
+                const faceCard = document.createElement('div');
+                faceCard.className = 'face-card';
+                
+                const faceImg = document.createElement('img');
+                faceImg.src = faceDataUrl;
+                faceImg.alt = `Face ${index + 1}`;
+                faceImg.className = 'face-img';
+                
+                const faceActions = document.createElement('div');
+                faceActions.className = 'face-actions';
+                
+                const downloadBtn = document.createElement('button');
+                downloadBtn.textContent = 'Download';
+                downloadBtn.className = 'download-btn';
+                downloadBtn.onclick = () => downloadFace(faceDataUrl, index);
+                
+                faceActions.appendChild(downloadBtn);
+                faceCard.appendChild(faceImg);
+                faceCard.appendChild(faceActions);
+                
+                facesContainer.appendChild(faceCard);
+            });
+            
+            if (detectedFaces.length > 0) {
+                downloadAllBtn.disabled = false;
+            }
+            
+            processBtn.disabled = false;
+        }
+        
+        // Download a single face
+        function downloadFace(dataUrl, index) {
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = `face-${index + 1}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        // Download all faces as a ZIP file
+        async function downloadAllFaces() {
+            if (detectedFaces.length === 0) return;
+            
+            statusDiv.textContent = 'Creating ZIP file...';
+            statusDiv.classList.remove('hidden');
+            statusDiv.classList.remove('error');
+            statusDiv.classList.add('info');
+            
+            downloadAllBtn.disabled = true;
+            
+            try {
+                const zip = new JSZip();
+                
+                // Add each face to the zip
+                detectedFaces.forEach((face, index) => {
+                    // Convert data URL to blob
+                    const data = face.dataUrl.split(',')[1];
+                    const blob = b64toBlob(data, 'image/png');
+                    zip.file(`face-${index + 1}.png`, blob);
+                });
+                
+                // Generate zip file
+                const zipBlob = await zip.generateAsync({type: 'blob'});
+                
+                // Download the zip
+                saveAs(zipBlob, 'extracted-faces.zip');
+                
+                statusDiv.textContent = 'ZIP file downloaded successfully!';
+                statusDiv.classList.add('success');
+                
+                setTimeout(() => {
+                    statusDiv.classList.add('hidden');
+                }, 2000);
+                
+            } catch (error) {
+                statusDiv.textContent = `Error creating ZIP file: ${error.message}`;
+                statusDiv.classList.add('error');
+            }
+            
+            downloadAllBtn.disabled = false;
+        }
+        
+        // Convert base64 to Blob
+        function b64toBlob(b64Data, contentType = '', sliceSize = 512) {
+            const byteCharacters = atob(b64Data);
+            const byteArrays = [];
+            
+            for (let offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+                const slice = byteCharacters.slice(offset, offset + sliceSize);
+                
+                const byteNumbers = new Array(slice.length);
+                for (let i = 0; i < slice.length; i++) {
+                    byteNumbers[i] = slice.charCodeAt(i);
+                }
+                
+                const byteArray = new Uint8Array(byteNumbers);
+                byteArrays.push(byteArray);
+            }
+            
+            const blob = new Blob(byteArrays, {type: contentType});
+            return blob;
+        }
+        
+        // Initialize the application
+        initializeModels();
+    </script>
 </body>
 </html>
