@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Full Head Extraction Tool</title>
+    <title>Passport Photo Extractor</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -48,7 +48,7 @@
         .results {
             margin-top:20px;
             display:grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap:20px;
         }
         .face-card {
@@ -91,11 +91,6 @@
             border-radius:4px;
             margin-bottom:20px;
         }
-        .ratio-display {
-            margin:10px 0;
-            font-weight:bold;
-            color:#333;
-        }
         input.rename-field {
             width: 80%;
             margin-top: 5px;
@@ -107,16 +102,14 @@
 </head>
 <body>
     <div class="container">
-        <h1>Full Head Extraction Tool</h1>
+        <h1>Passport Photo Extractor</h1>
         <div class="instructions">
             <h3>Instructions:</h3>
             <ol>
-                <li>Upload an image containing faces</li>
-                <li>Click "Detect and Crop Faces" to process</li>
-                <li>Download individual faces or all as ZIP</li>
-                <li>Rename each face in the text fields if desired</li>
+                <li>Upload an image with multiple passport photos</li>
+                <li>Click "Extract Photos" to process</li>
+                <li>Download each photo individually or all as a ZIP</li>
             </ol>
-            <div class="ratio-display">Output Ratio: 1.5:2 (Width:Height)</div>
         </div>
         <div class="upload-section">
             <h3>Upload Image</h3>
@@ -124,17 +117,17 @@
             <div id="imagePreview"></div>
         </div>
         <div>
-            <button id="processButton" class="button" disabled>Detect and Crop Heads</button>
+            <button id="processButton" class="button" disabled>Extract Photos</button>
             <button id="downloadAllButton" class="button" disabled>Download All</button>
         </div>
         <div id="status" class="status"></div>
-        <h3>Detected Heads:</h3>
+        <h3>Extracted Photos:</h3>
         <div id="results" class="results"></div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script>
-        let imageFile = null, detectedFaces = [];
+        let imageFile = null, detectedPhotos = [];
         const imageUpload = document.getElementById('imageUpload');
         const imagePreview = document.getElementById('imagePreview');
         const processButton = document.getElementById('processButton');
@@ -151,7 +144,6 @@
             statusDiv.className = 'status loading';
             try {
                 await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
-                await faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
                 statusDiv.textContent = 'Models loaded. Ready.';
                 statusDiv.className = 'status success';
             } catch(e) {
@@ -166,7 +158,7 @@
             if (!file) return;
             imageFile = file;
             resultsDiv.innerHTML = '';
-            detectedFaces = [];
+            detectedPhotos = [];
             downloadAllButton.disabled = true;
             
             const reader = new FileReader();
@@ -177,16 +169,8 @@
             reader.readAsDataURL(file);
         }
 
-        function centerPoint(points) {
-            const xs = points.map(p => p.x), ys = points.map(p => p.y);
-            return {
-                x: xs.reduce((a, b) => a + b, 0) / points.length,
-                y: ys.reduce((a, b) => a + b, 0) / points.length
-            };
-        }
-
         // New function to handle face clustering and remove duplicates
-        function clusterFaces(detections, threshold = 0.1) {
+        function clusterFaces(detections, threshold = 0.3) {
             if (detections.length < 2) {
                 return detections;
             }
@@ -214,7 +198,6 @@
                 }
                 clusters.push(cluster);
             }
-
             return clusters.map(cluster => {
                 let bestDetection = cluster[0];
                 for (let i = 1; i < cluster.length; i++) {
@@ -229,17 +212,17 @@
         async function processImage() {
             if (!imageFile) return;
             
-            statusDiv.textContent = 'Detecting faces...';
+            statusDiv.textContent = 'Detecting photos...';
             statusDiv.className = 'status loading';
             processButton.disabled = true;
             
             try {
                 const img = await faceapi.bufferToImage(imageFile);
-                const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.3 });
-                let detections = await faceapi.detectAllFaces(img, options).withFaceLandmarks();
+                const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.5 });
+                let detections = await faceapi.detectAllFaces(img, options);
                 
                 if (!detections.length) {
-                    statusDiv.textContent = 'No faces detected.';
+                    statusDiv.textContent = 'No photos detected.';
                     statusDiv.className = 'status error';
                     processButton.disabled = false;
                     return;
@@ -247,102 +230,60 @@
                 
                 detections = clusterFaces(detections);
 
-                statusDiv.textContent = 'Cropping and aligning heads...';
+                statusDiv.textContent = 'Extracting photos...';
                 
-                detectedFaces = await Promise.all(detections.map(async (det, index) => {
-                    const lm = det.landmarks;
+                detectedPhotos = detections.map((det, index) => {
                     const box = det.detection.box;
+
+                    // Calculate an expanded bounding box to capture the full passport photo.
+                    // A passport photo has a specific aspect ratio, e.g., 35mm x 45mm (7:9 ratio).
+                    // We can use a standardized expansion ratio to capture the full photo.
+                    // Let's assume a common passport photo ratio (e.g., 1.5:2 or 3:4).
+                    const photoRatio = 1.5/2; 
+                    const faceToPhotoHeightRatio = 0.7; // Head typically takes up ~70% of photo height
+
+                    const photoH = box.height / faceToPhotoHeightRatio;
+                    const photoW = photoH * photoRatio;
                     
-                    const leftEye = centerPoint(lm.getLeftEye());
-                    const rightEye = centerPoint(lm.getRightEye());
-                    const angle = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x) * 180 / Math.PI;
+                    const photoX = box.x - (photoW - box.width) / 2;
+                    const photoY = box.y - (photoH - box.height) / 2;
 
-                    // Calculate a new, expanded bounding box for the entire head
-                    const headTopY = box.y - box.height * 0.7; // Go up for hair
-                    const headBottomY = box.y + box.height * 1.3; // Go down for chin and neck
-                    const headX = box.x - box.width * 0.5; // Expand to the sides
-                    const headW = box.width * 2;
-                    const headH = headBottomY - headTopY;
-
-                    // Create the final canvas for the rotated and cropped head
                     const finalCanvas = document.createElement('canvas');
                     const finalCtx = finalCanvas.getContext('2d');
-
-                    finalCanvas.width = headW;
-                    finalCanvas.height = headH;
-
-                    // Center the rotation on the canvas
-                    finalCtx.translate(finalCanvas.width / 2, finalCanvas.height / 2);
-                    finalCtx.rotate(-angle * Math.PI / 180);
                     
-                    // Draw the original image onto the canvas, rotated and shifted to center the head
+                    finalCanvas.width = photoW;
+                    finalCanvas.height = photoH;
+                    
                     finalCtx.drawImage(
-                        img, 
-                        headX, 
-                        headTopY, 
-                        headW, 
-                        headH,
-                        -finalCanvas.width / 2, 
-                        -finalCanvas.height / 2, 
-                        finalCanvas.width, 
-                        finalCanvas.height
-                    );
-                    
-                    // Reset the canvas transform
-                    finalCtx.setTransform(1, 0, 0, 1, 0, 0);
-
-                    // Re-process the rotated image to get an accurate final crop
-                    const tempImg = await faceapi.bufferToImage(await (await fetch(finalCanvas.toDataURL('image/jpeg'))).blob());
-                    const reDetection = await faceapi.detectSingleFace(tempImg, options).withFaceLandmarks();
-
-                    if (!reDetection) {
-                        return { id: `head_${index + 1}`, imageData: finalCanvas.toDataURL('image/jpeg'), x: box.x, y: box.y };
-                    }
-                    
-                    const reBox = reDetection.detection.box;
-                    const reLm = reDetection.landmarks;
-
-                    // Calculate a new, even more precise bounding box from the re-detection
-                    const reHeadTopY = reBox.y - reBox.height * 0.7;
-                    const reHeadBottomY = reBox.y + reBox.height * 1.3;
-                    const reHeadX = reBox.x - reBox.width * 0.5;
-                    const reHeadW = reBox.width * 2;
-                    const reHeadH = reHeadBottomY - reHeadTopY;
-
-                    const finalFinalCanvas = document.createElement('canvas');
-                    const finalFinalCtx = finalFinalCanvas.getContext('2d');
-                    finalFinalCanvas.width = reHeadW;
-                    finalFinalCanvas.height = reHeadH;
-
-                    finalFinalCtx.drawImage(
-                        tempImg,
-                        reHeadX,
-                        reHeadTopY,
-                        reHeadW,
-                        reHeadH,
-                        0, 0,
-                        reHeadW,
-                        reHeadH
+                        img,
+                        photoX,
+                        photoY,
+                        photoW,
+                        photoH,
+                        0,
+                        0,
+                        photoW,
+                        photoH
                     );
 
                     return {
-                        id: `head_${index + 1}`,
-                        imageData: finalFinalCanvas.toDataURL('image/jpeg'),
-                        x: box.x,
-                        y: box.y
+                        id: `photo_${index + 1}`,
+                        imageData: finalCanvas.toDataURL('image/jpeg'),
+                        x: photoX,
+                        y: photoY
                     };
-                }));
+                });
                 
-                detectedFaces = detectedFaces.filter(f => f !== null);
-
-                detectedFaces.sort((a, b) => {
-                    const margin = 20;
-                    if (Math.abs(a.y - b.y) < margin) return a.x - b.x;
+                detectedPhotos.sort((a, b) => {
+                    const margin = 50; // A threshold to determine if faces are on the same row
+                    if (Math.abs(a.y - b.y) < margin) {
+                        return a.x - b.x;
+                    }
                     return a.y - b.y;
                 });
                 
                 displayResults();
-                statusDiv.textContent = `Processed ${detectedFaces.length} heads.`;
+                statusDiv.textContent = `Processed ${detectedPhotos.length} photos.`;
                 statusDiv.className = 'status success';
                 downloadAllButton.disabled = false;
             } catch(e) {
@@ -357,12 +298,12 @@
         function displayResults() {
             resultsDiv.innerHTML = '';
             
-            detectedFaces.forEach((face, index) => {
+            detectedPhotos.forEach((photo, index) => {
                 const card = document.createElement('div');
                 card.className = 'face-card';
                 card.innerHTML = `
-                    <img src="${face.imageData}" class="face-image" alt="Head">
-                    <input type="text" class="rename-field" value="" placeholder="Enter name for person" data-index="${index}">
+                    <img src="${photo.imageData}" class="face-image" alt="Passport Photo">
+                    <input type="text" class="rename-field" value="" placeholder="Enter name for photo" data-index="${index}">
                     <button class="button download-btn" data-index="${index}">Download</button>
                 `;
                 resultsDiv.appendChild(card);
@@ -371,7 +312,7 @@
             document.querySelectorAll('.rename-field').forEach(input => {
                 input.addEventListener('input', () => {
                     const idx = parseInt(input.dataset.index);
-                    detectedFaces[idx].id = input.value.trim() || `head_${idx + 1}`;
+                    detectedPhotos[idx].id = input.value.trim() || `photo_${idx + 1}`;
                 });
             });
             
@@ -384,30 +325,30 @@
         }
 
         function downloadFace(index) {
-            const face = detectedFaces[index];
-            if (!face) return;
+            const photo = detectedPhotos[index];
+            if (!photo) return;
             
             const link = document.createElement('a');
-            link.href = face.imageData;
-            link.download = `${face.id}.jpg`;
+            link.href = photo.imageData;
+            link.download = `${photo.id}.jpg`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
         }
 
         async function downloadAllFaces() {
-            if (!detectedFaces.length) return;
+            if (!detectedPhotos.length) return;
             
             const zip = new JSZip();
-            detectedFaces.forEach(face => {
-                const data = face.imageData.split(',')[1];
-                zip.file(`${face.id}.jpg`, base64ToBlob(data, 'image/jpeg'));
+            detectedPhotos.forEach(photo => {
+                const data = photo.imageData.split(',')[1];
+                zip.file(`${photo.id}.jpg`, base64ToBlob(data, 'image/jpeg'));
             });
             
             const content = await zip.generateAsync({ type: 'blob' });
             const link = document.createElement('a');
             link.href = URL.createObjectURL(content);
-            link.download = 'heads.zip';
+            link.download = 'passport_photos.zip';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
