@@ -1,394 +1,56 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FacZe Detection & Cropping Tool</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        h1 {
-            text-align:center;
-            color:#333;
-        }
-        .upload-section {
-            margin-bottom:20px;
-            padding:15px;
-            border:2px dashed #ccc;
-            border-radius:5px;
-            text-align:center;
-        }
-        .button {
-            background-color:#4CAF50;
-            color:white;
-            padding:10px 15px;
-            border:none;
-            border-radius:4px;
-            cursor:pointer;
-            margin:5px;
-        }
-        .button:disabled {
-            background-color:#cccccc;
-            cursor:not-allowed;
-        }
-        .button:hover:not(:disabled) {
-            background-color:#45a049;
-        }
-        .results {
-            margin-top:20px;
-            display:grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px,1fr));
-            gap:20px;
-        }
-        .face-card {
-            border:1px solid #ddd;
-            border-radius:4px;
-            padding:10px;
-            text-align:center;
-            background-color:#f9f9f9;
-            transition: transform 0.2s;
-        }
-        .face-card:hover {
-            transform: scale(1.03);
-        }
-        .face-image {
-            max-width:100%;
-            height:auto;
-            border-radius:3px;
-            cursor: pointer;
-        }
-        .status {
-            margin:10px 0;
-            padding:10px;
-            border-radius:4px;
-        }
-        .loading {
-            background-color:#e0f7fa;
-            color:#006064;
-        }
-        .success {
-            background-color:#e8f5e9;
-            color:#2e7d32;
-        }
-        .error {
-            background-color:#ffebee;
-            color:#c62828;
-        }
-        .instructions {
-            background-color:#fff3e0;
-            padding:15px;
-            border-radius:4px;
-            margin-bottom:20px;
-        }
-        .ratio-display {
-            margin:10px 0;
-            font-weight:bold;
-            color:#333;
-        }
-        input.rename-field {
-            width: 80%;
-            margin-top: 5px;
-            padding:4px;
-            border-radius:3px;
-            border:1px solid #ccc;
-        }
-    </style>
+  <title>Face Extractor</title>
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
 </head>
 <body>
-    <div class="container">
-        <h1>Face Detection & Cropping Tool</h1>
-        <div class="instructions">
-            <h3>Instructions:</h3>
-            <ol>
-                <li>Upload an image containing faces</li>
-                <li>Click "Detect and Crop Faces" to process</li>
-                <li>Download individual faces or all as ZIP</li>
-                <li>Rename each face in the text fields if desired</li>
-            </ol>
-            <div class="ratio-display">Crop Ratio: 1.5:2 (Width:Height)</div>
-        </div>
-        <div class="upload-section">
-            <h3>Upload Image</h3>
-            <input type="file" id="imageUpload" accept="image/*">
-            <div id="imagePreview"></div>
-        </div>
-        <div>
-            <button id="processButton" class="button" disabled>Detect and Crop Faces</button>
-            <button id="downloadAllButton" class="button" disabled>Download All</button>
-        </div>
-        <div id="status" class="status"></div>
-        <h3>Detected Faces:</h3>
-        <div id="results" class="results"></div>
-    </div>
-    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script>
-        let imageFile = null, detectedFaces = [];
-        const imageUpload = document.getElementById('imageUpload');
-        const imagePreview = document.getElementById('imagePreview');
-        const processButton = document.getElementById('processButton');
-        const downloadAllButton = document.getElementById('downloadAllButton');
-        const statusDiv = document.getElementById('status');
-        const resultsDiv = document.getElementById('results');
+  <h2>Upload an Image</h2>
+  <input type="file" id="imageUpload" accept="image/*" />
+  <div id="facesContainer"></div>
 
-        imageUpload.addEventListener('change', handleImageUpload);
-        processButton.addEventListener('click', processImage);
-        downloadAllButton.addEventListener('click', downloadAllFaces);
+  <script>
+    async function loadModels() {
+      await faceapi.nets.ssdMobilenetv1.loadFromUri('/models');
+    }
 
-        async function initializeFaceAPI() {
-            statusDiv.textContent = 'Loading models...';
-            statusDiv.className = 'status loading';
-            try {
-                // Ensure all necessary models are loaded
-                await faceapi.nets.tinyFaceDetector.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
-                await faceapi.nets.faceLandmark68Net.loadFromUri('https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/');
-                statusDiv.textContent = 'Models loaded. Ready.';
-                statusDiv.className = 'status success';
-            } catch(e) {
-                statusDiv.textContent = `Error: ${e.message}`;
-                statusDiv.className = 'status error';
-                console.error(e);
-            }
-        }
+    function isDuplicate(box, boxes) {
+      return boxes.some(b =>
+        Math.abs(b.x - box.x) < 5 &&
+        Math.abs(b.y - box.y) < 5 &&
+        Math.abs(b.width - box.width) < 5 &&
+        Math.abs(b.height - box.height) < 5
+      );
+    }
 
-        function handleImageUpload(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            imageFile = file;
-            resultsDiv.innerHTML = '';
-            detectedFaces = [];
-            downloadAllButton.disabled = true;
-            
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                imagePreview.innerHTML = `<img src="${e.target.result}" style="max-width:100%; max-height:300px;">`;
-                processButton.disabled = false;
-            };
-            reader.readAsDataURL(file);
-        }
+    document.getElementById('imageUpload').addEventListener('change', async (event) => {
+      const imageFile = event.target.files[0];
+      const img = await faceapi.bufferToImage(imageFile);
+      document.body.append(img); // Optional: show original image
 
-    function centerPoint(points) {
-            const xs = points.map(p => p.x), ys = points.map(p => p.y);
-            return {
-                x: xs.reduce((a, b) => a + b, 0) / points.length,
-                y: ys.reduce((a, b) => a + b, 0) / points.length
-            };
-        }
+      const detections = await faceapi.detectAllFaces(img);
+      const boxes = [];
 
-        function checkOverlap(boxA, boxB) {
-            const xOverlap = Math.max(0, Math.min(boxA.x + boxA.width, boxB.x + boxB.width) - Math.max(boxA.x, boxB.x));
-            const yOverlap = Math.max(0, Math.min(boxA.y + boxA.height, boxB.y + boxB.height) - Math.max(boxA.y, boxB.y));
-            const overlapArea = xOverlap * yOverlap;
-            const areaA = boxA.width * boxA.height;
-            const areaB = boxB.width * boxB.height;
-            const intersectionOverUnion = overlapArea / (areaA + areaB - overlapArea);
-            return intersectionOverUnion > 0.5; // Threshold for considering it a duplicate
-        }
+      for (const detection of detections) {
+        const box = detection.box;
+        if (isDuplicate(box, boxes)) continue;
+        boxes.push(box);
 
-        async function processImage() {
-            if (!imageFile) return;
-            
-            statusDiv.textContent = 'Detecting faces...';
-            statusDiv.className = 'status loading';
-            processButton.disabled = true;
-            
-            try {
-                const img = await faceapi.bufferToImage(imageFile);
-                const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.3 });
-                let detections = await faceapi.detectAllFaces(img, options).withFaceLandmarks();
-                
-                if (!detections.length) {
-                    statusDiv.textContent = 'No faces detected.';
-                    statusDiv.className = 'status error';
-                    processButton.disabled = false;
-                    return;
-                }
+        const canvas = document.createElement('canvas');
+        canvas.width = box.width;
+        canvas.height = box.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(
+          img,
+          box.x, box.y, box.width, box.height,
+          0, 0, box.width, box.height
+        );
 
-                // Filter out duplicate detections based on overlap
-                const uniqueDetections = [];
-                detections.forEach(detA => {
-                    const isDuplicate = uniqueDetections.some(detB => checkOverlap(detA.detection.box, detB.detection.box));
-                    if (!isDuplicate) {
-                        uniqueDetections.push(detA);
-                    }
-                });
-                detections = uniqueDetections;
+        document.getElementById('facesContainer').appendChild(canvas);
+      }
+    });
 
-                statusDiv.textContent = `Found ${detections.length} unique faces. Processing...`;
-                
-                detectedFaces = await Promise.all(detections.map(async (det, index) => {
-                    const lm = det.landmarks;
-                    const box = det.detection.box;
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    
-                    const leftEye = centerPoint(lm.getLeftEye());
-                    const rightEye = centerPoint(lm.getRightEye());
-                    const nose = centerPoint(lm.getNose());
-                    
-                    // Calculate the rotation angle
-                    const angle = Math.atan2(rightEye.y - leftEye.y, rightEye.x - leftEye.x) * 180 / Math.PI;
-
-                    // Define target crop ratio and padding
-                    const cropRatioW = 1.5, cropRatioH = 2;
-                    const paddingY = box.height * 0.75; // Adjust this value to control top/bottom padding
-                    const paddingX = box.width * 0.75; // Adjust this value to control side padding
-
-                    // Calculate crop height based on face box height and padding
-                    let cropH = box.height + paddingY;
-                    let cropW = cropH * cropRatioW / cropRatioH;
-
-                    // Adjust width if padding is too large
-                    if (cropW < box.width + paddingX) {
-                        cropW = box.width + paddingX;
-                        cropH = cropW * cropRatioH / cropRatioW;
-                    }
-
-                    // Position crop rectangle
-                    const y_offset = 0.45; // Adjust this value to set vertical center of nose
-                    const noseY_relative = nose.y - box.y;
-                    const targetNoseY = cropH * y_offset;
-                    
-                    let cropX = nose.x - cropW / 2;
-                    let cropY = nose.y - targetNoseY;
-                    
-                    // Clamp crop coordinates to image boundaries
-                    cropX = Math.max(0, Math.min(cropX, img.width - cropW));
-                    cropY = Math.max(0, Math.min(cropY, img.height - cropH));
-                    
-                    if (cropW <= 0 || cropH <= 0) return null;
-                    
-                    canvas.width = cropW;
-                    canvas.height = cropH;
-                    
-                    // Draw rotated image onto canvas
-                    ctx.translate(cropW / 2, cropH / 2);
-                    ctx.rotate(-angle * Math.PI / 180);
-                    ctx.drawImage(img, cropX, cropY, cropW, cropH, -cropW / 2, -cropH / 2, cropW, cropH);
-                    ctx.setTransform(1, 0, 0, 1, 0, 0);
-
-                    return {
-                        id: `face_${index + 1}`,
-                        imageData: canvas.toDataURL('image/jpeg'),
-                        x: cropX,
-                        y: cropY // Retain original coordinates for sorting
-                    };
-                }));
-                
-                // Filter out any null results from failed crops
-                detectedFaces = detectedFaces.filter(f => f !== null);
-
-                detectedFaces.sort((a, b) => {
-                    const margin = 20;
-                    if (Math.abs(a.y - b.y) < margin) return a.x - b.x;
-                    return a.y - b.y;
-                });
-                
-                displayResults();
-                statusDiv.textContent = `Processed ${detectedFaces.length} faces.`;
-                statusDiv.className = 'status success';
-                downloadAllButton.disabled = false;
-            } catch(e) {
-                statusDiv.textContent = `Error: ${e.message}`;
-                statusDiv.className = 'status error';
-                console.error(e);
-            } finally {
-                processButton.disabled = false;
-            }
-        }
-       
-
-        function displayResults() {
-            resultsDiv.innerHTML = '';
-            
-            detectedFaces.forEach((face, index) => {
-                const card = document.createElement('div');
-                card.className = 'face-card';
-                card.innerHTML = `
-                    <img src="${face.imageData}" class="face-image" alt="Face">
-                    <input type="text" class="rename-field" value="" placeholder="Enter name for face" data-index="${index}">
-                    <button class="button download-btn" data-index="${index}">Download</button>
-                `;
-                resultsDiv.appendChild(card);
-            });
-            
-            document.querySelectorAll('.rename-field').forEach(input => {
-                input.addEventListener('input', () => {
-                    const idx = parseInt(input.dataset.index);
-                    detectedFaces[idx].id = input.value.trim() || `face_${idx + 1}`;
-                });
-            });
-            
-            document.querySelectorAll('.download-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const idx = parseInt(btn.dataset.index);
-                    downloadFace(idx);
-                });
-            });
-        }
-
-        function downloadFace(index) {
-            const face = detectedFaces[index];
-            if (!face) return;
-            
-            const link = document.createElement('a');
-            link.href = face.imageData;
-            link.download = `${face.id}.jpg`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        async function downloadAllFaces() {
-            if (!detectedFaces.length) return;
-            
-            const zip = new JSZip();
-            detectedFaces.forEach(face => {
-                const data = face.imageData.split(',')[1];
-                zip.file(`${face.id}.jpg`, base64ToBlob(data, 'image/jpeg'));
-            });
-            
-            const content = await zip.generateAsync({ type: 'blob' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(content);
-            link.download = 'faces.zip';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        function base64ToBlob(base64, mimeType) {
-            const byteCharacters = atob(base64);
-            const byteArrays = [];
-            
-            for (let offset = 0; offset < byteCharacters.length; offset += 512) {
-                const slice = byteCharacters.slice(offset, offset + 512);
-                const byteNumbers = new Array(slice.length);
-                
-                for (let i = 0; i < slice.length; i++) {
-                    byteNumbers[i] = slice.charCodeAt(i);
-                }
-                
-                byteArrays.push(new Uint8Array(byteNumbers));
-            }
-            
-            return new Blob(byteArrays, { type: mimeType });
-        }
-
-        initializeFaceAPI();
-    </script>
+    loadModels();
+  </script>
 </body>
 </html>
-
-
